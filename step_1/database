@@ -1,0 +1,78 @@
+
+# 🧱 المرحلة 1: Database Schema
+
+---
+
+# 📏 units
+
+## 🎯 الوظيفة
+تعريف وحدات القياس
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | معرف الوحدة |
+| name | VARCHAR(50) | — | اسم الوحدة |
+| symbol | VARCHAR(10) | — | الرمز (ml / g / pcs) |
+| created_at | TIMESTAMP | — | إنشاء |
+| updated_at | TIMESTAMP | — | تحديث |
+
+---
+
+# 📂 categories
+
+## 🎯 الوظيفة
+تصنيف المنتجات وربطها بوحدة
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | التصنيف |
+| name | VARCHAR(255) | — | الاسم |
+| unit_id | BIGINT | FK → units | الوحدة |
+| created_at | TIMESTAMP | — | إنشاء |
+| updated_at | TIMESTAMP | — | تحديث |
+
+---
+
+# 🧩 price_tiers
+
+## 🎯 الوظيفة
+تصنيف الجودة (A/B/C)
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | التير |
+| name | VARCHAR(10) | — | A / B / C |
+| description | TEXT | — | وصف |
+
+---
+
+# 🧴 products
+
+## 🎯 الوظيفة
+تعريف المنتج
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | المنتج |
+| name | VARCHAR | — | الاسم |
+| category_id | BIGINT | FK | التصنيف |
+| price_tier_id | BIGINT | FK | التير |
+| selling_type | ENUM | — | DECANT_ONLY / FULL_ONLY / BOTH / UNIT_BASED |
+| created_at | TIMESTAMP | — | إنشاء |
+| updated_at | TIMESTAMP | — | تحديث |
+
+---
+
+# 📦 inventory
+
+## 🎯 الوظيفة
+المخزون الحقيقي
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | معرف |
+| product_id | BIGINT | FK | المنتج |
+| quantity | DECIMAL | — | الكمية |
+| unit_id | BIGINT | FK | الوحدة |
+| created_at | TIMESTAMP | — | إنشاء |
+| updated_at | TIMESTAMP | — | تحديث |

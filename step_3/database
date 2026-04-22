@@ -1,0 +1,26 @@
+
+# 💸 المرحلة 3: Sales Database
+
+---
+
+# 🧾 sales
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | البيع |
+| user_id | BIGINT | FK | البائع |
+| product_id | BIGINT | FK | المنتج |
+| size_id | BIGINT | FK | الحجم |
+| quantity | DECIMAL | — | الكمية |
+| price | DECIMAL | — | السعر النهائي |
+| created_at | TIMESTAMP | — | الوقت |
+
+---
+
+# 📦 inventory
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| product_id | BIGINT | FK | المنتج |
+| quantity | DECIMAL | — | المخزون |
+| updated_at | TIMESTAMP | — | التحديث |

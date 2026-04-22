@@ -1,0 +1,83 @@
+
+---
+
+# 📄 2. phase5-tables.md
+
+```md id="phase5-tables-final"
+
+# 🧱 المرحلة 5 — Production & Recipe Database
+
+---
+
+# 🧾 recipes
+
+## 🎯 الوظيفة
+تعريف وصفة إنتاج لكل منتج + حجم
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | الوصفة |
+| product_id | BIGINT | FK → products | المنتج |
+| size_id | BIGINT | FK → sizes | الحجم (إن وجد) |
+| is_active | BOOLEAN | — | تفعيل |
+
+---
+
+# 🧪 recipe_items
+
+## 🎯 الوظيفة
+تفاصيل مكونات كل وصفة
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | السجل |
+| recipe_id | BIGINT | FK → recipes | الوصفة |
+| material_id | BIGINT | FK → material_types | المادة |
+| quantity | DECIMAL | — | الكمية المستخدمة |
+| unit | VARCHAR | — | ml / g / pcs |
+
+---
+
+# 🧴 production_logs
+
+## 🎯 الوظيفة
+تسجيل كل عملية إنتاج/استهلاك فعلي
+
+| الحقل | النوع | PK/FK | الوصف |
+|------|------|------|------|
+| id | BIGINT | PK | السجل |
+| sale_id | BIGINT | FK → sales | البيع |
+| recipe_id | BIGINT | FK → recipes | الوصفة |
+| product_id | BIGINT | FK | المنتج |
+| size_id | BIGINT | FK | الحجم |
+| quantity_produced | DECIMAL | — | الكمية |
+| created_at | TIMESTAMP | — | الوقت |
+
+---
+
+# 🧠 قواعد مهمة
+
+---
+
+## ✔ قاعدة 1
+كل Product Size يجب أن يكون له Recipe
+
+---
+
+## ✔ قاعدة 2
+البيع لا يتم إلا إذا:
+- recipe موجود
+- مواد كافية في المخزون
+
+---
+
+## ✔ قاعدة 3
+الـ Recipe هو المصدر الوحيد للتكلفة التشغيلية
+
+---
+
+# 🔥 النتيجة النهائية
+
+✔ النظام أصبح Production-aware  
+✔ كل بيع = إنتاج + استهلاك + تكلفة  
+✔ لا يوجد بيع بدون معرفة “كيف تم إنتاجه”  

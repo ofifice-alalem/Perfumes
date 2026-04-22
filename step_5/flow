@@ -1,0 +1,111 @@
+# 🧱 المرحلة 5 — Production & Recipe Engine Flow
+
+---
+
+# 🎯 الهدف
+
+تحويل كل منتج في النظام إلى:
+
+> “عملية إنتاج + استهلاك مواد + تحويل إلى بيع”
+
+بدلاً من مجرد عنصر مخزون.
+
+---
+
+# 🧠 الفكرة الأساسية
+
+> كل Product Size = Recipe (وصفة إنتاج)
+
+هذه الوصفة تحدد:
+- ماذا نستهلك
+- كم نستهلك
+- كيف ننتج وحدة واحدة
+
+---
+
+# 🔄 FLOW الكامل
+
+---
+
+## 1️⃣ تعريف Recipe لكل Product
+
+```text
+Admin opens product
+    ↓
+Select size (1ml / 3ml / 5ml / full / unit)
+    ↓
+Define recipe:
+- materials used
+- quantities per unit
+    ↓
+Save recipe
+2️⃣ بناء الوصفة (Recipe Composition)
+Example:
+1ml Lacoste White
+    ↓
+Ingredients:
+- 0.8ml perfume oil
+- 0.2ml alcohol
+- 0.1 bottle unit
+3️⃣ تفعيل الوصفة عند البيع
+Sale created
+    ↓
+System finds recipe for product + size
+    ↓
+Loads all ingredients
+4️⃣ استهلاك المواد (Auto Consumption)
+For each ingredient:
+    ↓
+Check material stock
+    ↓
+Deduct quantity:
+- alcohol
+- bottles
+- packaging
+5️⃣ تسجيل عملية الإنتاج
+System logs:
+- product produced
+- materials consumed
+- linked sale_id
+6️⃣ تحديث المخزون
+After sale:
+    ↓
+Update:
+- product stock
+- material stock
+7️⃣ حساب التكلفة الفعلية
+Cost calculation:
+    ↓
+Sum(materials_used_cost)
++ batch product cost
+    ↓
+Store in sale_costs
+🧴 أمثلة واقعية
+🧴 Lacoste White (Decant)
+Size: 5ml
+
+Recipe:
+- 4ml perfume oil
+- 1ml alcohol
+- bottle fraction
+
+→ Every sale triggers consumption
+💎 Dior Sauvage (Full Bottle)
+Recipe:
+- full product batch
+- 1 bottle
+- label + packaging
+
+→ One sale = full consumption
+🌿 بخور
+Recipe:
+- grams of raw material
+- packaging unit
+
+→ Unit-based consumption
+🧠 النتيجة النهائية
+
+✔ المنتج = ليس رقم
+✔ المنتج = وصفة إنتاج
+✔ البيع = تنفيذ وصفة
+✔ المخزون = نتيجة تنفيذ الوصفة

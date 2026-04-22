@@ -16,7 +16,80 @@
 
 ---
 
-### 1. users
+### 1. inventory_movements
+
+**الوظيفة:** تتبع جميع حركات المخزون (إضافة / خصم / تعديل / نقل)
+
+| الحقل | النوع | PK/FK | Nullable | الوصف |
+|------|------|------|----------|-------|
+| id | BIGINT | PK | NO | معرف الحركة |
+| product_id | BIGINT | FK → products | NO | المنتج |
+| movement_type | ENUM | — | NO | نوع الحركة |
+| quantity | DECIMAL(10,2) | — | NO | الكمية (موجب للإضافة / سالب للخصم) |
+| quantity_before | DECIMAL(10,2) | — | NO | الكمية قبل الحركة |
+| quantity_after | DECIMAL(10,2) | — | NO | الكمية بعد الحركة |
+| reference_type | VARCHAR(50) | — | YES | نوع المرجع (sale / purchase / adjustment / loss / return) |
+| reference_id | BIGINT | — | YES | معرف المرجع |
+| user_id | BIGINT | FK → users | NO | المستخدم |
+| notes | TEXT | — | YES | ملاحظات |
+| created_at | TIMESTAMP | — | YES | تاريخ الحركة |
+
+**Indexes:**
+- PRIMARY KEY (id)
+- FOREIGN KEY (product_id) REFERENCES products(id)
+- FOREIGN KEY (user_id) REFERENCES users(id)
+- INDEX (product_id)
+- INDEX (movement_type)
+- INDEX (reference_type, reference_id)
+- INDEX (created_at)
+
+**ENUM Values:**
+- movement_type: ('in', 'out', 'adjustment', 'transfer')
+
+**الأهمية:** تتبع شامل لكل حركات المخزون في مكان واحد
+
+**الفائدة:**
+- تقارير حركة المخزون
+- تدقيق المخزون
+- تتبع من أضاف/خصم المخزون
+- معرفة سبب كل حركة
+
+**أمثلة على الاستخدام:**
+```
+بيع منتج:
+- movement_type: 'out'
+- quantity: -5
+- reference_type: 'sale'
+- reference_id: 123
+
+شراء دفعة:
+- movement_type: 'in'
+- quantity: +200
+- reference_type: 'purchase'
+- reference_id: 45
+
+تعديل يدوي:
+- movement_type: 'adjustment'
+- quantity: +10
+- reference_type: NULL
+- notes: "تصحيح جرد"
+
+فاقد/تلف:
+- movement_type: 'out'
+- quantity: -15
+- reference_type: 'loss'
+- reference_id: 78
+
+مرتجع:
+- movement_type: 'in'
+- quantity: +3
+- reference_type: 'return'
+- reference_id: 56
+```
+
+---
+
+### 2. users
 
 **الوظيفة:** إدارة المستخدمين (Laravel default)
 
@@ -43,7 +116,7 @@
 
 ---
 
-### 2. unit_based_prices
+### 3. unit_based_prices
 
 **الوظيفة:** تسعير المنتجات UNIT_BASED (بخور / وشق)
 
@@ -69,11 +142,89 @@
 
 ---
 
+---
+
 ## 🟡 HIGH: جداول مهمة
 
 ---
 
-### 3. customers
+### 4. invoices
+
+**الوظيفة:** فواتير متعددة المنتجات
+
+| الحقل | النوع | PK/FK | Nullable | الوصف |
+|------|------|------|----------|-------|
+| id | BIGINT | PK | NO | رقم الفاتورة |
+| invoice_number | VARCHAR(50) | — | NO | رقم الفاتورة (فريد) |
+| customer_id | BIGINT | FK → customers | YES | العميل |
+| user_id | BIGINT | FK → users | NO | البائع |
+| subtotal | DECIMAL(10,2) | — | NO | المجموع الفرعي |
+| discount | DECIMAL(10,2) | — | NO | الخصم |
+| tax | DECIMAL(10,2) | — | NO | الضريبة |
+| total | DECIMAL(10,2) | — | NO | الإجمالي |
+| payment_method | VARCHAR(50) | — | NO | طريقة الدفع |
+| status | ENUM | — | NO | حالة الفاتورة |
+| notes | TEXT | — | YES | ملاحظات |
+| created_at | TIMESTAMP | — | YES | تاريخ الإنشاء |
+| updated_at | TIMESTAMP | — | YES | تاريخ التحديث |
+
+**Indexes:**
+- PRIMARY KEY (id)
+- UNIQUE (invoice_number)
+- FOREIGN KEY (customer_id) REFERENCES customers(id)
+- FOREIGN KEY (user_id) REFERENCES users(id)
+- INDEX (customer_id)
+- INDEX (user_id)
+- INDEX (status)
+- INDEX (created_at)
+
+**ENUM Values:**
+- status: ('pending', 'completed', 'cancelled', 'refunded')
+
+**الأهمية:** ضرورية لفواتير متعددة المنتجات وتقارير أفضل
+
+**الفائدة:**
+- بيع عدة منتجات في فاتورة واحدة
+- طباعة فواتير احترافية
+- تقارير مبيعات أدق
+- تتبع حالة الفاتورة
+
+---
+
+### 5. invoice_items
+
+**الوظيفة:** تفاصيل منتجات الفاتورة
+
+| الحقل | النوع | PK/FK | Nullable | الوصف |
+|------|------|------|----------|-------|
+| id | BIGINT | PK | NO | معرف السطر |
+| invoice_id | BIGINT | FK → invoices | NO | الفاتورة |
+| product_id | BIGINT | FK → products | NO | المنتج |
+| size_id | BIGINT | FK → sizes | YES | الحجم (nullable للـ UNIT_BASED) |
+| quantity | DECIMAL(10,2) | — | NO | الكمية |
+| unit_price | DECIMAL(10,2) | — | NO | سعر الوحدة |
+| discount | DECIMAL(10,2) | — | NO | خصم السطر |
+| total_price | DECIMAL(10,2) | — | NO | الإجمالي |
+| created_at | TIMESTAMP | — | YES | تاريخ الإنشاء |
+
+**Indexes:**
+- PRIMARY KEY (id)
+- FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+- FOREIGN KEY (product_id) REFERENCES products(id)
+- FOREIGN KEY (size_id) REFERENCES sizes(id)
+- INDEX (invoice_id)
+- INDEX (product_id)
+
+**الفائدة:**
+- تفاصيل دقيقة لكل منتج
+- خصومات على مستوى السطر
+- تقارير منتجات مفصلة
+
+**ملاحظة:** إذا تم تطبيق invoices، يمكن ربط sales بـ invoice_id أو استبدال sales بـ invoice_items
+
+---
+
+### 6. customers
 
 **الوظيفة:** إدارة بيانات العملاء
 
@@ -108,7 +259,7 @@ ALTER TABLE sales ADD FOREIGN KEY (customer_id) REFERENCES customers(id);
 
 ---
 
-### 4. suppliers
+### 7. suppliers
 
 **الوظيفة:** إدارة بيانات الموردين
 
@@ -143,71 +294,7 @@ ALTER TABLE purchase_batches ADD FOREIGN KEY (supplier_id) REFERENCES suppliers(
 
 ---
 
-### 5. invoices
-
-**الوظيفة:** فواتير متعددة المنتجات (اختياري للـ POS)
-
-| الحقل | النوع | PK/FK | Nullable | الوصف |
-|------|------|------|----------|-------|
-| id | BIGINT | PK | NO | رقم الفاتورة |
-| customer_id | BIGINT | FK → customers | YES | العميل |
-| user_id | BIGINT | FK → users | NO | البائع |
-| subtotal | DECIMAL(10,2) | — | NO | المجموع الفرعي |
-| discount | DECIMAL(10,2) | — | NO | الخصم |
-| tax | DECIMAL(10,2) | — | NO | الضريبة |
-| total | DECIMAL(10,2) | — | NO | الإجمالي |
-| payment_method | VARCHAR(50) | — | NO | طريقة الدفع |
-| status | ENUM | — | NO | حالة الفاتورة |
-| created_at | TIMESTAMP | — | YES | تاريخ الإنشاء |
-| updated_at | TIMESTAMP | — | YES | تاريخ التحديث |
-
-**Indexes:**
-- PRIMARY KEY (id)
-- FOREIGN KEY (customer_id) REFERENCES customers(id)
-- FOREIGN KEY (user_id) REFERENCES users(id)
-- INDEX (customer_id)
-- INDEX (user_id)
-- INDEX (status)
-- INDEX (created_at)
-
-**ENUM Values:**
-- status: ('pending', 'completed', 'cancelled')
-
----
-
-### 6. invoice_items
-
-**الوظيفة:** تفاصيل منتجات الفاتورة
-
-| الحقل | النوع | PK/FK | Nullable | الوصف |
-|------|------|------|----------|-------|
-| id | BIGINT | PK | NO | معرف السطر |
-| invoice_id | BIGINT | FK → invoices | NO | الفاتورة |
-| product_id | BIGINT | FK → products | NO | المنتج |
-| size_id | BIGINT | FK → sizes | YES | الحجم |
-| quantity | DECIMAL(10,2) | — | NO | الكمية |
-| unit_price | DECIMAL(10,2) | — | NO | سعر الوحدة |
-| total_price | DECIMAL(10,2) | — | NO | الإجمالي |
-| created_at | TIMESTAMP | — | YES | تاريخ الإنشاء |
-
-**Indexes:**
-- PRIMARY KEY (id)
-- FOREIGN KEY (invoice_id) REFERENCES invoices(id)
-- FOREIGN KEY (product_id) REFERENCES products(id)
-- FOREIGN KEY (size_id) REFERENCES sizes(id)
-- INDEX (invoice_id)
-- INDEX (product_id)
-
-**الفائدة:**
-- فواتير متعددة المنتجات
-- تقارير أفضل
-- تجربة مستخدم محسنة
-
-**ملاحظة:** إذا تم تطبيق invoices، يجب ربط sales بـ invoice_items
-
----
-
-### 7. payment_methods
+### 8. payment_methods
 
 **الوظيفة:** تتبع طرق الدفع
 
@@ -226,7 +313,7 @@ ALTER TABLE purchase_batches ADD FOREIGN KEY (supplier_id) REFERENCES suppliers(
 
 ---
 
-### 8. payments
+### 9. payments
 
 **الوظيفة:** تسجيل المدفوعات
 
@@ -256,7 +343,7 @@ ALTER TABLE purchase_batches ADD FOREIGN KEY (supplier_id) REFERENCES suppliers(
 
 ---
 
-### 9. material_batches
+### 10. material_batches
 
 **الوظيفة:** دفعات شراء المواد التشغيلية (كحول / زجاج)
 
@@ -280,7 +367,7 @@ ALTER TABLE purchase_batches ADD FOREIGN KEY (supplier_id) REFERENCES suppliers(
 
 ---
 
-### 10. material_inventory
+### 11. material_inventory
 
 **الوظيفة:** مخزون المواد مع FIFO
 
@@ -316,11 +403,13 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
+---
+
 ## 🟢 MEDIUM: تحسينات اختيارية
 
 ---
 
-### 11. returns
+### 12. returns
 
 **الوظيفة:** إدارة المرتجعات
 
@@ -348,7 +437,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 12. return_items
+### 13. return_items
 
 **الوظيفة:** تفاصيل المنتجات المرتجعة
 
@@ -377,7 +466,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 13. discounts
+### 14. discounts
 
 **الوظيفة:** إدارة الخصومات والعروض
 
@@ -404,7 +493,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 14. discount_products
+### 15. discount_products
 
 **الوظيفة:** ربط الخصومات بالمنتجات
 
@@ -430,7 +519,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 15. product_images
+### 16. product_images
 
 **الوظيفة:** صور المنتجات
 
@@ -451,7 +540,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 16. notifications
+### 17. notifications
 
 **الوظيفة:** إشعارات النظام
 
@@ -479,11 +568,13 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
+---
+
 ## 🔵 LOW: ميزات مستقبلية
 
 ---
 
-### 17. loyalty_programs
+### 18. loyalty_programs
 
 **الوظيفة:** برامج الولاء
 
@@ -503,7 +594,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 18. customer_points
+### 19. customer_points
 
 **الوظيفة:** نقاط العملاء
 
@@ -522,7 +613,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 19. expenses
+### 20. expenses
 
 **الوظيفة:** المصروفات التشغيلية
 
@@ -544,7 +635,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ---
 
-### 20. reports_cache
+### 21. reports_cache
 
 **الوظيفة:** تخزين التقارير المحسوبة مسبقاً
 
@@ -565,11 +656,11 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ## 📊 ملخص الجداول الناقصة
 
-**إجمالي الجداول:** 20 جدول
+**إجمالي الجداول:** 21 جدول
 
 **حسب الأولوية:**
-- 🔴 CRITICAL: 2 جدول (users, unit_based_prices)
-- 🟡 HIGH: 8 جداول (customers, suppliers, invoices, payments, materials)
+- 🔴 CRITICAL: 3 جداول (inventory_movements, users, unit_based_prices)
+- 🟡 HIGH: 8 جداول (invoices, invoice_items, customers, suppliers, payments, materials)
 - 🟢 MEDIUM: 6 جداول (returns, discounts, images, notifications)
 - 🔵 LOW: 4 جداول (loyalty, expenses, reports)
 
@@ -581,10 +672,12 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 ```
 ✅ users (Laravel default)
 ✅ unit_based_prices (حل نقطة القرار)
+✅ inventory_movements (تتبع حركات المخزون)
 ```
 
 ### **المرحلة الثانية (بعد الإطلاق الأولي):**
 ```
+□ invoices + invoice_items (فواتير متعددة المنتجات)
 □ customers
 □ suppliers
 □ payment_methods + payments
@@ -593,10 +686,10 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 
 ### **المرحلة الثالثة (تحسينات):**
 ```
-□ invoices + invoice_items
 □ returns + return_items
 □ discounts + discount_products
 □ notifications
+□ product_images
 ```
 
 ### **المرحلة الرابعة (مستقبلية):**
@@ -612,7 +705,7 @@ ALTER TABLE material_usage ADD FOREIGN KEY (material_batch_id) REFERENCES materi
 ## ✅ الخلاصة
 
 **الجداول الحالية:** 23 جدول ✅  
-**الجداول الناقصة:** 20 جدول  
-**الضرورية منها:** 2 جدول فقط  
+**الجداول الناقصة:** 21 جدول  
+**الضرورية منها:** 3 جداول (inventory_movements, users, unit_based_prices)  
 
 **الحالة:** النظام الحالي مكتمل منطقياً، والجداول الناقصة هي تحسينات اختيارية أو ميزات مستقبلية.

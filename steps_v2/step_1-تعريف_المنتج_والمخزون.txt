@@ -83,11 +83,13 @@ Constraints:
 └─────────────────────────────────────────────────────────────────────────────┘
 
 📌 الغرض: تعريف المنتج الكامل مع تحديد طريقة بيعه
+📌 v2.1: إضافة SKU للتتبع الفريد
 
 الحقل              النوع         العلاقة                  القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────────
 id                 BIGINT        PK                       AUTO_INCREMENT        المعرف
 name               VARCHAR(255)  —                        —                     اسم المنتج
+sku                VARCHAR(50)   —                        NULL                  رمز المنتج الفريد (SKU)
 category_id        BIGINT        FK → categories.id       —                     التصنيف
 price_tier_id      BIGINT        FK → price_tiers.id      —                     مستوى الجودة
 selling_type       ENUM          —                        —                     نوع البيع
@@ -100,11 +102,14 @@ ENUM selling_type:
    'BOTH'         → يدعم التقسيم والعبوة الكاملة معاً
    'UNIT_BASED'   → بيع بالقطعة أو الغرام (بخور / وشق)
 
+Constraints:
+   UNIQUE (sku)
+
 📌 أمثلة:
-   Lacoste White  → category: عطور زيتية | tier: A | selling_type: DECANT_ONLY
-   Dior Sauvage   → category: عطور زيتية | tier: C | selling_type: BOTH
-   بخور عود       → category: بخور       | tier: B | selling_type: UNIT_BASED
-   وشق مسك        → category: وشق        | tier: A | selling_type: UNIT_BASED
+   Lacoste White  → category: عطور زيتية | tier: A | selling_type: DECANT_ONLY | sku: 'LAC-WHT-001'
+   Dior Sauvage   → category: عطور زيتية | tier: C | selling_type: BOTH | sku: 'DIO-SAU-001'
+   بخور عود       → category: بخور       | tier: B | selling_type: UNIT_BASED | sku: 'BKH-OUD-001'
+   وشق مسك        → category: وشق        | tier: A | selling_type: UNIT_BASED | sku: 'WSH-MSK-001'
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -112,12 +117,14 @@ ENUM selling_type:
 └─────────────────────────────────────────────────────────────────────────────┘
 
 📌 الغرض: تسجيل الكمية الحالية لكل منتج في المخزون
+📌 v2.1: إضافة min_stock_level للتنبيهات
 
 الحقل              النوع          العلاقة             القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────
 id                 BIGINT         PK                  AUTO_INCREMENT        المعرف
 product_id         BIGINT         FK → products.id    —                     المنتج
 quantity           DECIMAL(10,2)  —                   0                     الكمية المتوفرة
+min_stock_level    DECIMAL(10,2)  —                   0                     الحد الأدنى للمخزون
 unit_id            BIGINT         FK → units.id       —                     الوحدة
 created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ الإنشاء
 updated_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ التحديث
@@ -126,11 +133,12 @@ Constraints:
    UNIQUE (product_id)
 
 📌 ملاحظة: unit_id للعرض السريع، الوحدة الأصلية من product → category → unit
+📌 v2.1: min_stock_level يفعّل تنبيهات عندما quantity < min_stock_level
 
 📌 أمثلة:
-   Lacoste White  → quantity: 200  | unit: ml
-   بخور عود       → quantity: 100  | unit: pcs
-   وشق مسك        → quantity: 500  | unit: g
+   Lacoste White  → quantity: 200  | unit: ml | min_stock_level: 50
+   بخور عود       → quantity: 100  | unit: pcs | min_stock_level: 20
+   وشق مسك        → quantity: 500  | unit: g | min_stock_level: 100
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐

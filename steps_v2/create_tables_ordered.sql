@@ -155,10 +155,12 @@ CREATE TABLE suppliers (
 -- 9. products
 -- يعتمد على: categories, price_tiers
 -- المنتجات مع نوع البيع
+-- 📌 v2.1: إضافة SKU للتتبع الفريد
 -- ============================================================
 CREATE TABLE products (
     id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name           VARCHAR(255) NOT NULL,
+    sku            VARCHAR(50)  NULL,
     category_id    BIGINT UNSIGNED NOT NULL,
     price_tier_id  BIGINT UNSIGNED NOT NULL,
     selling_type   ENUM('DECANT_ONLY','FULL_ONLY','BOTH','UNIT_BASED') NOT NULL,
@@ -166,6 +168,7 @@ CREATE TABLE products (
     updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_products_category  FOREIGN KEY (category_id)   REFERENCES categories(id),
     CONSTRAINT fk_products_tier      FOREIGN KEY (price_tier_id) REFERENCES price_tiers(id),
+    UNIQUE KEY uq_products_sku (sku),
     INDEX idx_products_selling_type (selling_type)
 );
 
@@ -174,14 +177,16 @@ CREATE TABLE products (
 -- 10. inventory
 -- يعتمد على: products, units
 -- المخزون الحالي لكل منتج
+-- 📌 v2.1: إضافة min_stock_level للتنبيهات
 -- ============================================================
 CREATE TABLE inventory (
-    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    product_id BIGINT UNSIGNED NOT NULL,
-    quantity   DECIMAL(10,2)   NOT NULL DEFAULT 0,
-    unit_id    BIGINT UNSIGNED NOT NULL,
-    created_at TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    product_id      BIGINT UNSIGNED NOT NULL,
+    quantity        DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    min_stock_level DECIMAL(10,2)   NULL DEFAULT 0,
+    unit_id         BIGINT UNSIGNED NOT NULL,
+    created_at      TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_inventory_product FOREIGN KEY (product_id) REFERENCES products(id),
     CONSTRAINT fk_inventory_unit    FOREIGN KEY (unit_id)    REFERENCES units(id),
     UNIQUE KEY uq_inventory_product (product_id)
@@ -263,6 +268,7 @@ CREATE TABLE material_types (
 -- 15. invoices
 -- يعتمد على: customers, users
 -- رأس الفاتورة
+-- 📌 v2.1: إضافة دعم الدفع الجزئي
 -- ============================================================
 CREATE TABLE invoices (
     id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -272,6 +278,9 @@ CREATE TABLE invoices (
     subtotal       DECIMAL(10,2)   NOT NULL DEFAULT 0,
     discount       DECIMAL(10,2)   NOT NULL DEFAULT 0,
     total          DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    paid_amount    DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    due_amount     DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    payment_status ENUM('unpaid','partial','paid') NOT NULL DEFAULT 'unpaid',
     status         ENUM('completed','cancelled','refunded') NOT NULL DEFAULT 'completed',
     notes          TEXT            NULL,
     created_at     TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
@@ -281,6 +290,7 @@ CREATE TABLE invoices (
     UNIQUE KEY uq_invoices_number (invoice_number),
     INDEX idx_invoices_customer (customer_id),
     INDEX idx_invoices_status (status),
+    INDEX idx_invoices_payment_status (payment_status),
     INDEX idx_invoices_created_at (created_at)
 );
 
@@ -289,18 +299,20 @@ CREATE TABLE invoices (
 -- 16. invoice_items
 -- يعتمد على: invoices, products, sizes
 -- تفاصيل المنتجات في الفاتورة
+-- 📌 v2.1: إضافة product_unit_cost (snapshot للتكلفة)
 -- ============================================================
 CREATE TABLE invoice_items (
-    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    invoice_id  BIGINT UNSIGNED NOT NULL,
-    product_id  BIGINT UNSIGNED NOT NULL,
-    sale_type   ENUM('decant','full','unit_based') NOT NULL,
-    size_id     BIGINT UNSIGNED NULL,
-    quantity    DECIMAL(10,2)   NOT NULL,
-    unit_price  DECIMAL(10,2)   NOT NULL,
-    discount    DECIMAL(10,2)   NOT NULL DEFAULT 0,
-    total_price DECIMAL(10,2)   NOT NULL,
-    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    invoice_id        BIGINT UNSIGNED NOT NULL,
+    product_id        BIGINT UNSIGNED NOT NULL,
+    sale_type         ENUM('decant','full','unit_based') NOT NULL,
+    size_id           BIGINT UNSIGNED NULL,
+    quantity          DECIMAL(10,2)   NOT NULL,
+    unit_price        DECIMAL(10,2)   NOT NULL,
+    product_unit_cost DECIMAL(10,2)   NULL,
+    discount          DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    total_price       DECIMAL(10,2)   NOT NULL,
+    created_at        TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_invoice_items_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
     CONSTRAINT fk_invoice_items_product FOREIGN KEY (product_id) REFERENCES products(id),
     CONSTRAINT fk_invoice_items_size    FOREIGN KEY (size_id)    REFERENCES sizes(id),
@@ -395,15 +407,17 @@ CREATE TABLE recipes (
 -- 21. recipe_items
 -- يعتمد على: recipes, material_types
 -- مكونات كل وصفة (كحول، زجاجة، تغليف...)
+-- 📌 v2.1: إضافة waste_percentage لحساب الهدر
 -- ============================================================
 CREATE TABLE recipe_items (
-    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    recipe_id   BIGINT UNSIGNED NOT NULL,
-    material_id BIGINT UNSIGNED NOT NULL,
-    quantity    DECIMAL(10,2)   NOT NULL,
-    unit        VARCHAR(10)     NOT NULL,
-    created_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    recipe_id        BIGINT UNSIGNED NOT NULL,
+    material_id      BIGINT UNSIGNED NOT NULL,
+    quantity         DECIMAL(10,2)   NOT NULL,
+    waste_percentage DECIMAL(5,2)    NOT NULL DEFAULT 0,
+    unit             VARCHAR(10)     NOT NULL,
+    created_at       TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_recipe_items_recipe   FOREIGN KEY (recipe_id)   REFERENCES recipes(id),
     CONSTRAINT fk_recipe_items_material FOREIGN KEY (material_id) REFERENCES material_types(id)
 );
@@ -477,16 +491,19 @@ CREATE TABLE inventory_movements (
 -- 25. returns
 -- يعتمد على: invoices, users
 -- رأس طلب المرتجع
+-- 📌 v2.1: إضافة restock_fee لرسوم إعادة التخزين
 -- ============================================================
 CREATE TABLE returns (
-    id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    invoice_id    BIGINT UNSIGNED NOT NULL,
-    user_id       BIGINT UNSIGNED NOT NULL,
-    reason        TEXT            NULL,
-    refund_amount DECIMAL(10,2)   NOT NULL DEFAULT 0,
-    status        ENUM('pending','approved','rejected','completed') NOT NULL DEFAULT 'pending',
-    created_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id                     BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    invoice_id             BIGINT UNSIGNED NOT NULL,
+    user_id                BIGINT UNSIGNED NOT NULL,
+    reason                 TEXT            NULL,
+    refund_amount          DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    restock_fee            DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    restock_fee_percentage DECIMAL(5,2)    NULL,
+    status                 ENUM('pending','approved','rejected','completed') NOT NULL DEFAULT 'pending',
+    created_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    updated_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_returns_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id),
     CONSTRAINT fk_returns_user    FOREIGN KEY (user_id)    REFERENCES users(id),
     INDEX idx_returns_invoice (invoice_id),
@@ -554,6 +571,27 @@ CREATE TABLE discount_products (
 );
 
 
+-- ============================================================
+-- 29. return_cost_reversals
+-- يعتمد على: returns, invoice_costs
+-- عكس التكاليف عند المرتجع
+-- 📌 v2.1: جدول جديد لدقة حساب الأرباح
+-- ============================================================
+CREATE TABLE return_cost_reversals (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    return_id       BIGINT UNSIGNED NOT NULL,
+    invoice_cost_id BIGINT UNSIGNED NOT NULL,
+    product_cost    DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    material_cost   DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    total_cost      DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_return_cost_reversals_return       FOREIGN KEY (return_id)       REFERENCES returns(id),
+    CONSTRAINT fk_return_cost_reversals_invoice_cost FOREIGN KEY (invoice_cost_id) REFERENCES invoice_costs(id),
+    UNIQUE KEY uq_return_cost_reversals_return (return_id),
+    INDEX idx_return_cost_reversals_invoice_cost (invoice_cost_id)
+);
+
+
 ================================================================================
                     📊 ملخص التحسينات
 ================================================================================
@@ -583,10 +621,11 @@ CREATE TABLE discount_products (
    📌 material_purchases: دمج material_batches + material_inventory
 
 ✅ النتيجة النهائية:
-   📊 من 44 جدول → 28 جدول (تقليل 36%)
+   📊 من 44 جدول → 29 جدول (تقليل 34%)
    ⚡ نفس الوظائف الأساسية
    ✅ نفس الدقة في حساب التكاليف
    🚀 أسهل في التطوير والصيانة
+   🆕 دعم الدفع الجزئي والتكاليف الدقيقة
 
 
 ================================================================================

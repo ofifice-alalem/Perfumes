@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Home, Package, ShoppingCart, Users, Settings } from 'lucide-react';
+import { Home, Package, ShoppingCart, Users, Settings, FolderTree, Warehouse } from 'lucide-react';
 
 interface AppSidebarProps {
   isOpen: boolean;
@@ -9,7 +9,9 @@ interface AppSidebarProps {
 export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   const menuItems = [
     { icon: Home, label: 'الرئيسية', href: '/' },
-    { icon: Package, label: 'العطور', href: '/perfumes' },
+    { icon: FolderTree, label: 'التصنيفات', href: '/categories' },
+    { icon: Package, label: 'المنتجات', href: '/products' },
+    { icon: Warehouse, label: 'المخزون', href: '/inventory' },
     { icon: ShoppingCart, label: 'الطلبات', href: '/orders' },
     { icon: Users, label: 'العملاء', href: '/customers' },
     { icon: Settings, label: 'الإعدادات', href: '/settings' },

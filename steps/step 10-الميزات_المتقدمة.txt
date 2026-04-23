@@ -116,7 +116,7 @@ Constraints:
 الحقل              النوع         العلاقة    القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────
 id                 BIGINT        PK         AUTO_INCREMENT        المعرف
-report_type        VARCHAR(50)   —          —                     نوع التقرير (daily_sales / monthly_profit / ...)
+report_type        VARCHAR(50)   —          —                     نوع التقرير (daily_invoices / monthly_profit / ...)
 period             VARCHAR(50)   —          —                     الفترة (2024-01 / 2024-01-15)
 data               JSON          —          —                     بيانات التقرير
 generated_at       TIMESTAMP     —          CURRENT_TIMESTAMP     تاريخ التوليد
@@ -140,7 +140,7 @@ Constraints:
 
 1️⃣ notifications — تُنشأ تلقائياً عند:
    - inventory.quantity < حد معين → type: 'low_stock'
-   - إنشاء sale جديد → type: 'new_sale' (للمدير)
+   - إنشاء invoice جديد → type: 'new_sale' (للمدير)
    - إنشاء return جديد → type: 'return'
    - أي خطأ في النظام → type: 'system'
 
@@ -185,7 +185,7 @@ Constraints:
 
 ✅ جداول تُغذّي هذه الجداول:
    - inventory    → notifications (low_stock)
-   - sales        → notifications (new_sale)
+   - invoices     → notifications (new_sale)
    - invoices     → customer_points (عند الاكتمال)
    - returns      → notifications (return)
 
@@ -202,8 +202,8 @@ Constraints:
          ↓ customer_id IS NOT NULL
    customer_points: points += total × points_per_unit
 
-   sales (Step 3)
-         ↓ new sale
+   invoices (Step 3)
+         ↓ new invoice
    notifications: type='new_sale' (للمدير)
 
    returns (Step 8)

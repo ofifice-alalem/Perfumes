@@ -62,15 +62,15 @@ updated_at         TIMESTAMP      —                          CURRENT_TIMESTAMP
 وظيفته:
 تسجيل كل عملية إنتاج فعلية (Execution Tracking Layer).
 
-الحقل              النوع          العلاقة             القيمة الافتراضية    الوصف
+الحقل              النوع          العلاقة                القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────
-id                 BIGINT         PK                  AUTO_INCREMENT        المعرف
-sale_id            BIGINT         FK → sales.id       —                     البيع المرتبط
-recipe_id          BIGINT         FK → recipes.id     —                     الوصفة المنفَّذة
-product_id         BIGINT         FK → products.id    —                     المنتج
-size_id            BIGINT         FK → sizes.id       NULL                  الحجم (NULL للـ unit_based)
-quantity_produced  DECIMAL(10,2)  —                   —                     الكمية المنتجة
-created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     وقت الإنتاج
+id                 BIGINT         PK                     AUTO_INCREMENT        المعرف
+invoice_item_id    BIGINT         FK → invoice_items.id  —                     سطر الفاتورة المرتبط
+recipe_id          BIGINT         FK → recipes.id        —                     الوصفة المنفَّذة
+product_id         BIGINT         FK → products.id       —                     المنتج
+size_id            BIGINT         FK → sizes.id          NULL                  الحجم (NULL للـ unit_based)
+quantity_produced  DECIMAL(10,2)  —                      —                     الكمية المنتجة
+created_at         TIMESTAMP      —                      CURRENT_TIMESTAMP     وقت الإنتاج
 
 📌 هذا الجدول = طبقة تتبع التنفيذ (Execution Tracking Layer)
 📌 منفصل عن material_usage (Step 4) الذي هو طبقة تتبع التكلفة
@@ -134,10 +134,10 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     و
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ المرحلة 3: تنفيذ الوصفة عند البيع (Auto)                                   │
+│ المرحلة 3: تنفيذ الوصفة عند إضافة منتج للفاتورة (Auto)                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-🔹 الفاعل: النظام (Auto — بعد تأكيد البيع من Step 3)
+🔹 الفاعل: النظام (Auto — بعد إضافة منتج للفاتورة من Step 3)
 🔹 الشرط: وصفة موجودة + مواد كافية في المخزون
 
 📊 الجداول المتأثرة:
@@ -157,7 +157,7 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     و
 4️⃣ production_logs
    - يتم إنشاء سجل جديد
    - الحقول المستخدمة:
-     • sale_id (البيع المرتبط)
+     • invoice_item_id (سطر الفاتورة المرتبط)
      • recipe_id (الوصفة المنفَّذة)
      • product_id
      • size_id (NULL للـ unit_based)
@@ -166,7 +166,7 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     و
 5️⃣ material_usage  (من Step 4)
    - تسجيل استهلاك كل مادة
    - الحقول المستخدمة:
-     • sale_id
+     • invoice_item_id
      • material_id
      • quantity_used (recipe_item.quantity × quantity_produced)
 
@@ -187,14 +187,14 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     و
    - products          (معلومات المنتج)
    - sizes             (الحجم)
    - material_types    (المواد التشغيلية)
-   - sales             (البيع المرتبط)
+   - invoice_items     (سطر الفاتورة المرتبط)
 
 
 ================================================================================
                         مخطط تنفيذ الوصفة عند البيع
 ================================================================================
 
-   بيع 5ml Lacoste White
+   إضافة منتج للفاتورة (5ml Lacoste White)
          ↓
    البحث عن الوصفة:
    recipes WHERE product_id=1 AND size_id=3 AND is_active=TRUE
@@ -209,7 +209,7 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     و
          ↓
    ✅ متوفر → تنفيذ الوصفة
          ↓
-   production_logs: sale_id=Y, recipe_id=X, quantity_produced=1
+   production_logs: invoice_item_id=Y, recipe_id=X, quantity_produced=1
    material_usage: كحول 1ml + زجاجة 0.1 pcs
 
 

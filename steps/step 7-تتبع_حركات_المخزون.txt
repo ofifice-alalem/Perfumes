@@ -40,11 +40,11 @@ ENUM movement_type:
    'transfer'    → نقل (مستقبلي)
 
 reference_type القيم الممكنة:
-   'sale'        → مرتبط بـ sales.id
-   'purchase'    → مرتبط بـ purchase_batches.id
-   'loss'        → مرتبط بـ inventory_losses.id
-   'return'      → مرتبط بـ returns.id
-   NULL          → تعديل يدوي بدون مرجع
+   'invoice_item' → مرتبط بـ invoice_items.id
+   'purchase'     → مرتبط بـ purchase_batches.id
+   'loss'         → مرتبط بـ inventory_losses.id
+   'return'       → مرتبط بـ returns.id
+   NULL           → تعديل يدوي بدون مرجع
 
 Constraints:
    INDEX (product_id)
@@ -72,8 +72,8 @@ Constraints:
    - quantity: -5 (سالب)
    - quantity_before: 200
    - quantity_after: 195
-   - reference_type: 'sale'
-   - reference_id: sales.id
+   - reference_type: 'invoice_item'
+   - reference_id: invoice_items.id
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 عند الشراء (Step 4):
@@ -132,7 +132,7 @@ Constraints:
    1. inventory_movements
 
 ✅ جداول تُغذّي inventory_movements (من مراحل أخرى):
-   - sales              (Step 3) → movement_type: 'out'
+   - invoice_items      (Step 3) → movement_type: 'out'
    - purchase_batches   (Step 4) → movement_type: 'in'
    - inventory_losses   (Step 4) → movement_type: 'out'
    - returns            (Step 8) → movement_type: 'in'
@@ -143,7 +143,7 @@ Constraints:
                         مخطط تدفق الحركات
 ================================================================================
 
-   بيع (Step 3)        → inventory_movements (out, ref: sale)
+   بيع (Step 3)        → inventory_movements (out, ref: invoice_item)
    شراء (Step 4)       → inventory_movements (in,  ref: purchase)
    فاقد (Step 4)       → inventory_movements (out, ref: loss)
    مرتجع (Step 8)      → inventory_movements (in,  ref: return)

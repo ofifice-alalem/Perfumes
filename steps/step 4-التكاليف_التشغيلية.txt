@@ -137,12 +137,12 @@ updated_at         TIMESTAMP      —                             CURRENT_TIMEST
 └─────────────────────────────────────────────────────────────────────────────┘
 
 وظيفته:
-تسجيل استهلاك المواد التشغيلية لكل عملية بيع (Cost Tracking Layer).
+تسجيل استهلاك المواد التشغيلية لكل سطر فاتورة (Cost Tracking Layer).
 
 الحقل                  النوع          العلاقة                       القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────────────────────
 id                     BIGINT         PK                            AUTO_INCREMENT        المعرف
-sale_id                BIGINT         FK → sales.id                 —                     البيع
+invoice_item_id        BIGINT         FK → invoice_items.id         —                     سطر الفاتورة
 material_id            BIGINT         FK → material_types.id        —                     المادة
 material_batch_id      BIGINT         FK → material_batches.id      NULL                  الدفعة المستخدمة (للـ FIFO)
 quantity_used          DECIMAL(10,2)  —                             —                     الكمية المستخدمة
@@ -155,23 +155,23 @@ created_at             TIMESTAMP      —                             CURRENT_TI
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 8️⃣ sale_costs                                                               │
+│ 8️⃣ invoice_costs                                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 وظيفته:
-حساب وتخزين التكلفة الإجمالية الفعلية لكل عملية بيع.
+حساب وتخزين التكلفة الإجمالية الفعلية لكل فاتورة.
 
-الحقل              النوع          العلاقة          القيمة الافتراضية    الوصف
+الحقل              النوع          العلاقة             القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────
-id                 BIGINT         PK               AUTO_INCREMENT        المعرف
-sale_id            BIGINT         FK → sales.id    —                     البيع
-product_cost       DECIMAL(10,2)  —                —                     تكلفة المنتج (من الدفعة FIFO)
-material_cost      DECIMAL(10,2)  —                —                     تكلفة المواد التشغيلية
-total_cost         DECIMAL(10,2)  —                —                     إجمالي التكلفة
-created_at         TIMESTAMP      —                CURRENT_TIMESTAMP     تاريخ الإنشاء
+id                 BIGINT         PK                  AUTO_INCREMENT        المعرف
+invoice_id         BIGINT         FK → invoices.id    —                     الفاتورة
+product_cost       DECIMAL(10,2)  —                   —                     تكلفة المنتجات (من الدفعة FIFO)
+material_cost      DECIMAL(10,2)  —                   —                     تكلفة المواد التشغيلية
+total_cost         DECIMAL(10,2)  —                   —                     إجمالي التكلفة
+created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ الإنشاء
 
 Constraints:
-   UNIQUE (sale_id)
+   UNIQUE (invoice_id)
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -278,10 +278,10 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     ت
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ المرحلة 4: حساب تكلفة البيع (Auto — بعد كل بيع)                           │
+│ المرحلة 4: حساب تكلفة الفاتورة (Auto — بعد كل فاتورة)                           │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-🔹 الفاعل: النظام (Auto — بعد تأكيد البيع من Step 3)
+🔹 الفاعل: النظام (Auto — بعد تأكيد الفاتورة من Step 3)
 
 📊 الجداول المتأثرة:
 --------------------
@@ -305,19 +305,19 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     ت
 3️⃣ material_usage
    - تسجيل استهلاك كل مادة مع snapshot التكلفة
    - الحقول المستخدمة:
-     • sale_id, material_id, material_batch_id
+     • invoice_item_id, material_id, material_batch_id
      • quantity_used, cost_per_unit_snapshot, total_cost
 
-4️⃣ sale_costs
+4️⃣ invoice_costs
    - حساب وتخزين التكلفة الإجمالية
    - الحقول المستخدمة:
-     • sale_id
+     • invoice_id
      • product_cost (من batch FIFO: unit_cost × الكمية)
      • material_cost (مجموع material_usage.total_cost)
      • total_cost = product_cost + material_cost
 
 📌 مثال:
-   بيع 5ml Lacoste White:
+   فاتورة تحتوي على 5ml Lacoste White:
    - product_cost = 0.5 × 5 = 2.5 (من الدفعة الأقدم)
    - كحول: 1ml × 0.005 = 0.005 (snapshot من دفعة المواد)
    - عبوة: 0.1 pcs × 5 = 0.5
@@ -361,7 +361,7 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     ت
    5. material_batches   (دفعات شراء المواد)
    6. material_inventory (تتبع FIFO للمواد)
    7. material_usage     (استهلاك المواد)
-   8. sale_costs         (تكلفة البيع)
+   8. invoice_costs      (تكلفة الفاتورة)
    9. inventory_losses   (الفاقد والتلف)
 
 ✅ جداول تُحدَّث:
@@ -371,7 +371,8 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     ت
    - suppliers           (عند كل شراء)
 
 ✅ جداول تُقرأ فقط:
-   - sales               (لربط التكلفة بالبيع)
+   - invoices            (لربط التكلفة بالفاتورة)
+   - invoice_items       (لربط التكلفة بالمنتجات)
    - products            (معلومات المنتج)
 
 
@@ -383,23 +384,23 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     ت
    purchase_batches → batch_inventory (ORDER BY created_at ASC)
          ↓ عند البيع
    batch_inventory.remaining_quantity ↓
-   sale_costs.product_cost ← unit_cost × quantity
+   invoice_costs.product_cost ← unit_cost × quantity
 
    ── FIFO للمواد ──
    material_batches → material_inventory (ORDER BY created_at ASC)
          ↓ عند البيع
    material_inventory.remaining_quantity ↓
    material_usage.cost_per_unit_snapshot ← unit_cost من الدفعة
-   sale_costs.material_cost ← مجموع material_usage.total_cost
+   invoice_costs.material_cost ← مجموع material_usage.total_cost
 
 
 ================================================================================
                         حساب الربح الحقيقي
 ================================================================================
 
-   الربح = سعر البيع (sales.price)
-          - تكلفة المنتج (sale_costs.product_cost)
-          - تكلفة المواد (sale_costs.material_cost)
+   الربح = سعر البيع (invoices.total)
+          - تكلفة المنتجات (invoice_costs.product_cost)
+          - تكلفة المواد (invoice_costs.material_cost)
 
 📌 مثال:
    Lacoste White 5ml:
@@ -425,8 +426,8 @@ created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     ت
    - النظام: حساب التكاليف تلقائياً
 
 📊 التقارير المتاحة:
-   - تكلفة كل بيع
-   - الربح الحقيقي لكل بيع
+   - تكلفة كل فاتورة
+   - الربح الحقيقي لكل فاتورة
    - إجمالي المشتريات من كل مورد
    - تقرير FIFO للمنتجات والمواد
    - إجمالي الفاقد

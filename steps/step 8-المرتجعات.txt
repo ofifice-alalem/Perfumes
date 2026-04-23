@@ -18,16 +18,16 @@
 وظيفته:
 رأس طلب المرتجع — يمثل عملية الإرجاع من لحظة الإنشاء حتى الاكتمال.
 
-الحقل              النوع          العلاقة          القيمة الافتراضية    الوصف
+الحقل              النوع          العلاقة             القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────
-id                 BIGINT         PK               AUTO_INCREMENT        المعرف
-sale_id            BIGINT         FK → sales.id    —                     البيع الأصلي
-user_id            BIGINT         FK → users.id    —                     المستخدم الذي أنشأ المرتجع
-reason             TEXT           —                NULL                  سبب الإرجاع
-refund_amount      DECIMAL(10,2)  —                0                     المبلغ المسترد
-status             ENUM           —                'pending'             حالة المرتجع
-created_at         TIMESTAMP      —                CURRENT_TIMESTAMP     تاريخ الإنشاء
-updated_at         TIMESTAMP      —                CURRENT_TIMESTAMP     تاريخ التحديث
+id                 BIGINT         PK                  AUTO_INCREMENT        المعرف
+invoice_id         BIGINT         FK → invoices.id    —                     الفاتورة الأصلية
+user_id            BIGINT         FK → users.id       —                     المستخدم الذي أنشأ المرتجع
+reason             TEXT           —                   NULL                  سبب الإرجاع
+refund_amount      DECIMAL(10,2)  —                   0                     المبلغ المسترد
+status             ENUM           —                   'pending'             حالة المرتجع
+created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ الإنشاء
+updated_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ التحديث
 
 ENUM status:
    'pending'    → قيد المراجعة
@@ -75,7 +75,7 @@ Constraints:
 1️⃣ returns
    - يتم إنشاء سجل جديد
    - الحقول المستخدمة:
-     • sale_id, user_id, reason, status = 'pending'
+     • invoice_id, user_id, reason, status = 'pending'
 
 2️⃣ return_items
    - يتم إضافة سطر لكل منتج مرتجع
@@ -155,7 +155,7 @@ Constraints:
    - accounting_ledger     (قيد عكسي)
 
 ✅ جداول تُقرأ فقط:
-   - sales      (البيع الأصلي)
+   - invoices      (الفاتورة الأصلية)
    - products   (معلومات المنتج)
    - sizes      (الحجم)
 
@@ -198,9 +198,9 @@ Constraints:
 ================================================================================
 
 ⚠️ قواعد العمل:
-   1. ✅ لا يمكن إرجاع كمية أكبر من الكمية المباعة في sale_id
+   1. ✅ لا يمكن إرجاع كمية أكبر من الكمية المباعة في invoice_id
    2. ✅ المخزون لا يتغير إلا عند status = 'completed'
-   3. ✅ كل مرتجع مرتبط ببيع أصلي (sale_id)
+   3. ✅ كل مرتجع مرتبط بفاتورة أصلية (invoice_id)
    4. ✅ يُسجَّل في inventory_movements تلقائياً
 
 🔐 الصلاحيات:

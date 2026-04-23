@@ -80,18 +80,18 @@ created_at         TIMESTAMP     —                CURRENT_TIMESTAMP     وقت
 وظيفته:
 دفتر حسابات بسيط (POS-level) — تسجيل الإيرادات والتكاليف والأرباح.
 
-الحقل              النوع          العلاقة          القيمة الافتراضية    الوصف
+الحقل              النوع          العلاقة             القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────
-id                 BIGINT         PK               AUTO_INCREMENT        المعرف
-sale_id            BIGINT         FK → sales.id    —                     البيع
-type               ENUM           —                —                     نوع القيد
-amount             DECIMAL(10,2)  —                —                     القيمة
-description        TEXT           —                NULL                  شرح
-created_at         TIMESTAMP      —                CURRENT_TIMESTAMP     التاريخ
+id                 BIGINT         PK                  AUTO_INCREMENT        المعرف
+invoice_id         BIGINT         FK → invoices.id    —                     الفاتورة
+type               ENUM           —                   —                     نوع القيد
+amount             DECIMAL(10,2)  —                   —                     القيمة
+description        TEXT           —                   NULL                  شرح
+created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     التاريخ
 
 ENUM type:
-   'revenue'  → إيراد (سعر البيع)
-   'cost'     → تكلفة (تكلفة المنتج + المواد)
+   'revenue'  → إيراد (سعر الفاتورة)
+   'cost'     → تكلفة (تكلفة المنتجات + المواد)
    'profit'   → ربح (revenue - cost)
 
 📌 ملاحظة: هذا نظام محاسبة بسيط مناسب للـ POS — ليس double-entry accounting
@@ -162,8 +162,8 @@ ENUM level:
    - قراءة recipes + recipe_items
    - التحقق من توفر المواد
 
-4️⃣ [تنفيذ البيع — من Step 3]
-   - إنشاء سجل في sales
+4️⃣ [تنفيذ الفاتورة — من Step 3]
+   - إنشاء سجل في invoices
    - خصم inventory
 
 5️⃣ [تنفيذ الوصفة — من Step 5]
@@ -171,12 +171,12 @@ ENUM level:
    - تسجيل material_usage
 
 6️⃣ [حساب التكلفة — من Step 4]
-   - إنشاء سجل في sale_costs
+   - إنشاء سجل في invoice_costs
    - تحديث batch_inventory (FIFO)
 
 7️⃣ accounting_ledger
    - تسجيل 3 قيود:
-     • revenue: سعر البيع
+     • revenue: سعر الفاتورة
      • cost: إجمالي التكلفة
      • profit: الفرق
 
@@ -247,7 +247,7 @@ ENUM level:
                         مخطط تدفق البيع الآمن الكامل
 ================================================================================
 
-   البائع يبدأ البيع
+   البائع يبدأ إضافة منتج للفاتورة
          ↓
    transactions: status='pending'
          ↓
@@ -256,11 +256,11 @@ ENUM level:
    التحقق: مخزون كافٍ؟ + وصفة موجودة؟ + مواد كافية؟
          ↓
    ┌─────────────────────────────────────────┐
-   │ ✅ نعم → تنفيذ البيع                    │
+   │ ✅ نعم → تنفيذ الفاتورة                    │
    │ ❌ لا  → Rollback + failed              │
    └─────────────────────────────────────────┘
          ↓ (نعم)
-   sales + inventory + production_logs + material_usage + sale_costs
+   invoices + invoice_items + inventory + production_logs + material_usage + invoice_costs
          ↓
    accounting_ledger (revenue + cost + profit)
          ↓
@@ -309,24 +309,25 @@ ENUM level:
 ================================================================================
 
 1. البائع يختار Lacoste White + 5ml
-2. transactions: id=1, type='sale', status='pending'
+2. transactions: id=1, type='invoice', status='pending'
 3. inventory_reservations: product_id=1, quantity=5, status='reserved', transaction_id=1
 4. التحقق:
    - inventory.quantity = 200 >= 5 ✅
    - recipe موجودة ✅
    - كحول متوفر ✅
-5. sales: id=1, product_id=1, sale_type='decant', size_id=3, quantity=1, price=40
-6. inventory: quantity = 200 - 5 = 195
-7. production_logs: sale_id=1, recipe_id=1, quantity_produced=1
-8. material_usage: كحول 1ml + زجاجة 0.1 pcs
-9. sale_costs: product_cost=2.5, material_cost=0.6, total_cost=3.1
-10. accounting_ledger:
+5. invoices: id=1, invoice_number='INV-001', total=40
+6. invoice_items: id=1, invoice_id=1, product_id=1, sale_type='decant', size_id=3, quantity=1, total_price=40
+7. inventory: quantity = 200 - 5 = 195
+8. production_logs: invoice_item_id=1, recipe_id=1, quantity_produced=1
+9. material_usage: كحول 1ml + زجاجة 0.1 pcs
+10. invoice_costs: product_cost=2.5, material_cost=0.6, total_cost=3.1
+11. accounting_ledger:
     - revenue: 40
     - cost: 3.1
     - profit: 36.9
-11. inventory_reservations: status='released'
-12. transactions: status='committed', completed_at=NOW()
-13. audit_logs: action='create', entity_type='sale', entity_id=1
+12. inventory_reservations: status='released'
+13. transactions: status='committed', completed_at=NOW()
+14. audit_logs: action='create', entity_type='invoice', entity_id=1
 
 
 ================================================================================

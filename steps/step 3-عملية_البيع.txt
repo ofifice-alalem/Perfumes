@@ -72,18 +72,18 @@ customer_id        BIGINT         FK → customers.id         NULL              
 user_id            BIGINT         FK → users.id             —                     البائع
 subtotal           DECIMAL(10,2)  —                         0                     المجموع قبل الخصم
 discount           DECIMAL(10,2)  —                         0                     خصم على مستوى الفاتورة
-tax                DECIMAL(10,2)  —                         0                     الضريبة
-total              DECIMAL(10,2)  —                         0                     الإجمالي النهائي
-status             ENUM           —                         'pending'             حالة الفاتورة
+total              DECIMAL(10,2)  —                         0                     الإجمالي النهائي (subtotal - discount)
+status             ENUM           —                         'completed'           حالة الفاتورة
 notes              TEXT           —                         NULL                  ملاحظات
 created_at         TIMESTAMP      —                         CURRENT_TIMESTAMP     تاريخ الإنشاء
 updated_at         TIMESTAMP      —                         CURRENT_TIMESTAMP     تاريخ التحديث
 
 ENUM status:
-   'pending'    → قيد الإنشاء
-   'completed'  → مكتملة
+   'completed'  → مكتملة (الحالة الافتراضية عند الإنشاء)
    'cancelled'  → ملغاة
-   'refunded'   → مستردة
+   'refunded'   → مستردة (بعد اكتمال مرتجع)
+
+📌 لا يوجد 'pending' — الفاتورة تُنشأ وتكتمل في نفس اللحظة (POS-first)
 
 Constraints:
    UNIQUE (invoice_number)

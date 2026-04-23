@@ -19,11 +19,11 @@ class PriceTier extends Model
 
     public function products(): HasMany
     {
-        return $this->hasMany(Product::class);
+        return $this->hasMany(Product::class, 'price_tier_id');
     }
 
     public function tierPrices(): HasMany
     {
-        return $this->hasMany(TierPrice::class);
+        return $this->hasMany(TierPrice::class, 'tier_id');
     }
 }

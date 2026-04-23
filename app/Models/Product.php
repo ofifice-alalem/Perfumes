@@ -72,6 +72,18 @@ class Product extends Model
         return $this->hasMany(ReturnItem::class);
     }
 
+    public function tierPrices(): HasMany
+    {
+        // tier_prices لا يحتوي على product_id، بل يرتبط عبر price_tier_id
+        // سنستخدم hasManyThrough أو نجلبها يدوياً
+        return $this->hasMany(TierPrice::class, 'tier_id', 'price_tier_id');
+    }
+
+    public function unitBasedPrices(): HasMany
+    {
+        return $this->hasMany(UnitBasedPrice::class);
+    }
+
     // Scopes
     public function scopeActive(Builder $query): Builder
     {

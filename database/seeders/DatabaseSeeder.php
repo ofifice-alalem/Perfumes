@@ -33,6 +33,7 @@ class DatabaseSeeder extends Seeder
         // Seed Step 1 data
         $this->call([
             UnitSeeder::class,
+            SizeSeeder::class,
             CategorySeeder::class,
             ProductSeeder::class,
             InventorySeeder::class,

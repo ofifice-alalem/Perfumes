@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Home, Package, ShoppingCart, Users, Settings, FolderTree, Warehouse, Ruler, DollarSign } from 'lucide-react';
+import { Home, Package, ShoppingCart, Users, Settings, FolderTree, Warehouse, Ruler, DollarSign, Maximize2, Tag } from 'lucide-react';
 
 interface AppSidebarProps {
   isOpen: boolean;
@@ -10,9 +10,11 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   const menuItems = [
     { icon: Home, label: 'الرئيسية', href: '/' },
     { icon: Ruler, label: 'الوحدات', href: '/units' },
+    { icon: Maximize2, label: 'الأحجام', href: '/sizes' },
     { icon: FolderTree, label: 'التصنيفات', href: '/categories' },
     { icon: DollarSign, label: 'مستويات الأسعار', href: '/price-tiers' },
     { icon: Package, label: 'المنتجات', href: '/products' },
+    { icon: Tag, label: 'أسعار المنتجات', href: '/product-pricing' },
     { icon: Warehouse, label: 'المخزون', href: '/inventory' },
     { icon: ShoppingCart, label: 'الطلبات', href: '/orders' },
     { icon: Users, label: 'العملاء', href: '/customers' },

@@ -17,6 +17,11 @@ class RepositoryServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(
+            \App\Repositories\Contracts\SizeRepositoryInterface::class,
+            \App\Repositories\SizeRepository::class
+        );
+
+        $this->app->bind(
             \App\Repositories\Contracts\CategoryRepositoryInterface::class,
             \App\Repositories\CategoryRepository::class
         );

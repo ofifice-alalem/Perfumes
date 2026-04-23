@@ -15,4 +15,5 @@ interface InventoryRepositoryInterface
     public function updateQuantity(int $productId, float $quantity): bool;
     public function getLowStock(): Collection;
     public function getOutOfStock(): Collection;
+    public function getAllWithProducts(?string $search = null): Collection;
 }

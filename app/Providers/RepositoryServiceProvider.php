@@ -22,6 +22,11 @@ class RepositoryServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(
+            \App\Repositories\Contracts\PriceTierRepositoryInterface::class,
+            \App\Repositories\PriceTierRepository::class
+        );
+
+        $this->app->bind(
             \App\Repositories\Contracts\ProductRepositoryInterface::class,
             \App\Repositories\ProductRepository::class
         );

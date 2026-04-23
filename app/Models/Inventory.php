@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Inventory extends Model
 {
+    protected $table = 'inventory';
+
     protected $fillable = [
         'product_id',
         'quantity',
@@ -20,6 +22,12 @@ class Inventory extends Model
         'min_stock_level' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+    ];
+
+    protected $appends = [
+        'is_low_stock',
+        'stock_status',
+        'stock_percentage',
     ];
 
     // Relationships

@@ -1,5 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { AppShell } from '@/Components/Layout/AppShell';
 
 interface Inventory {
     id: number;
@@ -65,14 +66,12 @@ export default function Index({ inventory }: Props) {
     };
 
     return (
-        <>
+        <AppShell>
             <Head title="إدارة المخزون" />
 
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="mb-6">
-                        <h1 className="text-3xl font-bold text-gray-900">إدارة المخزون</h1>
-                    </div>
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold">إدارة المخزون</h1>
+            </div>
 
                     {/* Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -215,8 +214,6 @@ export default function Index({ inventory }: Props) {
                             </tbody>
                         </table>
                     </div>
-                </div>
-            </div>
-        </>
+        </AppShell>
     );
 }

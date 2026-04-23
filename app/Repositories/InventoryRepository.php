@@ -54,4 +54,18 @@ class InventoryRepository implements InventoryRepositoryInterface
             ->with(['product', 'unit'])
             ->get();
     }
+
+    public function getAllWithProducts(?string $search = null): Collection
+    {
+        $query = Inventory::with(['product.category', 'unit']);
+
+        if ($search) {
+            $query->whereHas('product', function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->get();
+    }
 }

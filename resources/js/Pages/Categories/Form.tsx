@@ -1,6 +1,6 @@
 import React from 'react';
 import { Head, router, useForm } from '@inertiajs/react';
-import AppShell from '@/Components/Layout/AppShell';
+import { AppShell } from '@/Components/Layout/AppShell';
 
 interface Category {
     id: number;

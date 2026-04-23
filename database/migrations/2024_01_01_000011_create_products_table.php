@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('sku', 50)->nullable()->unique();
             $table->foreignId('category_id')->constrained('categories');
-            $table->foreignId('price_tier_id')->constrained('price_tiers');
+            $table->foreignId('price_tier_id')->nullable()->constrained('price_tiers');
             $table->enum('selling_type', ['DECANT_ONLY', 'FULL_ONLY', 'BOTH', 'UNIT_BASED']);
             $table->boolean('is_returnable')->default(true);
             $table->timestamps();

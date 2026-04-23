@@ -14,16 +14,32 @@ class ProductRepository implements ProductRepositoryInterface
         return Product::with(['category', 'inventory', 'images'])->get();
     }
 
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, ?string $search = null, ?int $categoryId = null): LengthAwarePaginator
     {
-        return Product::with(['category', 'inventory', 'images'])
-            ->latest()
-            ->paginate($perPage);
+        $query = Product::with(['category', 'inventory', 'images']);
+
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%");
+            });
+        }
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        return $query->latest()->paginate($perPage);
     }
 
     public function find(int $id): ?Product
     {
         return Product::with(['category', 'inventory', 'images'])->find($id);
+    }
+
+    public function findOrFail(int $id): Product
+    {
+        return Product::with(['category', 'inventory', 'images'])->findOrFail($id);
     }
 
     public function findBySku(string $sku): ?Product

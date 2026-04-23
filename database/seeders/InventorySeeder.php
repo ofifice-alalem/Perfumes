@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Unit;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class InventorySeeder extends Seeder
 {
@@ -37,11 +37,13 @@ class InventorySeeder extends Seeder
                 'UNIT_BASED' => 20,
             };
 
-            Inventory::create([
+            DB::table('inventory')->insert([
                 'product_id' => $product->id,
                 'quantity' => $quantity,
                 'min_stock_level' => $minStockLevel,
                 'unit_id' => $unitId,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         }
     }

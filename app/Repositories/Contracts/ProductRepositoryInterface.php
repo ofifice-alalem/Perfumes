@@ -9,8 +9,9 @@ use Illuminate\Pagination\LengthAwarePaginator;
 interface ProductRepositoryInterface
 {
     public function all(): Collection;
-    public function paginate(int $perPage = 15): LengthAwarePaginator;
+    public function paginate(int $perPage = 15, ?string $search = null, ?int $categoryId = null): LengthAwarePaginator;
     public function find(int $id): ?Product;
+    public function findOrFail(int $id): Product;
     public function findBySku(string $sku): ?Product;
     public function create(array $data): Product;
     public function update(int $id, array $data): bool;

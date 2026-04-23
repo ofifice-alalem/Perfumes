@@ -483,3 +483,207 @@ ORDER BY sale_date DESC;
 ================================================================================
                                     انتهى
 ================================================================================
+
+
+================================================================================
+                        🆕 v3.0: تتبع الخصومات بدقة (discount_id)
+================================================================================
+
+📌 الغرض: ربط كل خصم مطبق بمعرف الخصم الأصلي لتحسين التقارير والتحليل
+
+🔧 التعديلات:
+   - إضافة discount_id في invoice_items (خصم على مستوى السطر)
+   - إضافة discount_id في invoices (خصم على مستوى الفاتورة)
+
+================================================================================
+                        📝 أمثلة الاستخدام
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 1: تطبيق خصم على منتج محدد                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- الخصم: 10% على Lacoste White (discount_id = 5)
+-- السعر الأصلي: 40 دينار
+
+-- حساب الخصم
+SELECT price FROM tier_prices WHERE tier_id = 1 AND size_id = 3;
+-- price = 40
+
+SELECT value FROM discounts WHERE id = 5;
+-- value = 10 (نسبة مئوية)
+
+-- discount_amount = 40 × 10% = 4 دينار
+
+-- إضافة للفاتورة مع تسجيل discount_id
+INSERT INTO invoice_items (invoice_id, product_id, sale_type, size_id,
+                            quantity, unit_price, discount, discount_id, total_price)
+VALUES (1, 1, 'decant', 3, 1, 40, 4, 5, 36);
+
+✅ النتيجة: السطر مرتبط بالخصم (discount_id = 5)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 2: تطبيق خصم على مستوى الفاتورة                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- الخصم: 5 دينار على فاتورة فوق 100 (discount_id = 3)
+-- المجموع الفرعي: 120 دينار
+
+UPDATE invoices SET
+    subtotal = 120,
+    discount = 5,
+    discount_id = 3,
+    total = 115
+WHERE id = 1;
+
+✅ النتيجة: الفاتورة مرتبطة بالخصم (discount_id = 3)
+
+
+================================================================================
+                        📊 التقارير الجديدة
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣ أكثر الخصومات استخداماً                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    d.id,
+    d.name,
+    d.type,
+    d.value,
+    COUNT(DISTINCT ii.invoice_id) as times_used,
+    SUM(ii.discount) as total_discount_amount,
+    SUM(ii.total_price) as total_sales_with_discount
+FROM invoice_items ii
+JOIN discounts d ON ii.discount_id = d.id
+WHERE ii.discount_id IS NOT NULL
+GROUP BY d.id, d.name, d.type, d.value
+ORDER BY times_used DESC;
+
+✅ النتيجة:
+| id | name                    | type       | value | times_used | total_discount | total_sales |
+|----|-------------------------|------------|-------|------------|----------------|-------------|
+| 5  | خصم 10% على Lacoste    | percentage | 10    | 150        | 600            | 5400        |
+| 3  | خصم 5 دينار فوق 100    | fixed      | 5     | 80         | 400            | 9600        |
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2️⃣ فعالية الخصومات (ROI)                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    d.name,
+    COUNT(DISTINCT ii.invoice_id) as invoices_count,
+    SUM(ii.discount) as total_discount_given,
+    SUM(ii.total_price) as total_revenue,
+    ROUND(SUM(ii.total_price) / SUM(ii.discount), 2) as revenue_per_discount_dinar
+FROM invoice_items ii
+JOIN discounts d ON ii.discount_id = d.id
+WHERE ii.discount_id IS NOT NULL
+GROUP BY d.id, d.name
+ORDER BY revenue_per_discount_dinar DESC;
+
+✅ الفائدة: معرفة أي خصم يحقق أعلى عائد
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3️⃣ الخصومات حسب الفترة الزمنية                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    DATE(i.created_at) as sale_date,
+    d.name as discount_name,
+    COUNT(*) as usage_count,
+    SUM(ii.discount) as total_discount
+FROM invoice_items ii
+JOIN invoices i ON ii.invoice_id = i.id
+JOIN discounts d ON ii.discount_id = d.id
+WHERE i.created_at BETWEEN '2024-01-01' AND '2024-01-31'
+  AND ii.discount_id IS NOT NULL
+GROUP BY DATE(i.created_at), d.id, d.name
+ORDER BY sale_date DESC, usage_count DESC;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4️⃣ المنتجات الأكثر استفادة من الخصومات                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    p.name as product_name,
+    d.name as discount_name,
+    COUNT(*) as times_discounted,
+    AVG(ii.discount) as avg_discount,
+    SUM(ii.total_price) as total_sales
+FROM invoice_items ii
+JOIN products p ON ii.product_id = p.id
+JOIN discounts d ON ii.discount_id = d.id
+WHERE ii.discount_id IS NOT NULL
+GROUP BY p.id, p.name, d.id, d.name
+ORDER BY times_discounted DESC
+LIMIT 10;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 5️⃣ مقارنة المبيعات مع وبدون خصومات                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    'مع خصم' as category,
+    COUNT(*) as items_count,
+    SUM(unit_price * quantity) as original_amount,
+    SUM(discount) as discount_amount,
+    SUM(total_price) as final_amount
+FROM invoice_items
+WHERE discount_id IS NOT NULL
+
+UNION ALL
+
+SELECT 
+    'بدون خصم' as category,
+    COUNT(*) as items_count,
+    SUM(unit_price * quantity) as original_amount,
+    0 as discount_amount,
+    SUM(total_price) as final_amount
+FROM invoice_items
+WHERE discount_id IS NULL;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 6️⃣ تحليل سلوك العملاء مع الخصومات                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    c.name as customer_name,
+    COUNT(DISTINCT i.id) as total_invoices,
+    COUNT(DISTINCT CASE WHEN ii.discount_id IS NOT NULL THEN i.id END) as invoices_with_discount,
+    ROUND(COUNT(DISTINCT CASE WHEN ii.discount_id IS NOT NULL THEN i.id END) * 100.0 / COUNT(DISTINCT i.id), 2) as discount_usage_percentage,
+    SUM(CASE WHEN ii.discount_id IS NOT NULL THEN ii.discount ELSE 0 END) as total_discounts_received
+FROM customers c
+JOIN invoices i ON c.id = i.customer_id
+LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
+GROUP BY c.id, c.name
+HAVING total_invoices > 5
+ORDER BY discount_usage_percentage DESC;
+
+
+================================================================================
+                        🎯 الفوائد
+================================================================================
+
+✅ تتبع دقيق: معرفة أي خصم تم استخدامه بالضبط
+✅ تحليل فعالية: قياس ROI لكل عرض ترويجي
+✅ منع التلاعب: الخصم مسجل ومرتبط بمصدره
+✅ تقارير أفضل: تحليل شامل لسلوك العملاء
+✅ قرارات أذكى: معرفة أي خصومات تحقق أعلى مبيعات
+
+
+================================================================================
+                        ⚠️ ملاحظات مهمة
+================================================================================
+
+1. ✅ discount_id اختياري (NULL) - يمكن تطبيق خصم يدوي بدون ربط
+2. ✅ عند حذف خصم، السجلات التاريخية تبقى (FK بدون CASCADE)
+3. ✅ يمكن تطبيق خصم على السطر والفاتورة معاً
+4. ✅ التقارير تعتمد على discount_id للدقة

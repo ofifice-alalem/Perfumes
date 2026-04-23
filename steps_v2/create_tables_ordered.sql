@@ -156,6 +156,7 @@ CREATE TABLE suppliers (
 -- يعتمد على: categories, price_tiers
 -- المنتجات مع نوع البيع
 -- 📌 v2.1: إضافة SKU للتتبع الفريد
+-- 📌 v3.0: إضافة is_returnable (التحكم في سياسة المرتجعات)
 -- ============================================================
 CREATE TABLE products (
     id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -164,12 +165,14 @@ CREATE TABLE products (
     category_id    BIGINT UNSIGNED NOT NULL,
     price_tier_id  BIGINT UNSIGNED NOT NULL,
     selling_type   ENUM('DECANT_ONLY','FULL_ONLY','BOTH','UNIT_BASED') NOT NULL,
+    is_returnable  BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_products_category  FOREIGN KEY (category_id)   REFERENCES categories(id),
     CONSTRAINT fk_products_tier      FOREIGN KEY (price_tier_id) REFERENCES price_tiers(id),
     UNIQUE KEY uq_products_sku (sku),
-    INDEX idx_products_selling_type (selling_type)
+    INDEX idx_products_selling_type (selling_type),
+    INDEX idx_products_returnable (is_returnable)
 );
 
 
@@ -269,6 +272,7 @@ CREATE TABLE material_types (
 -- يعتمد على: customers, users
 -- رأس الفاتورة
 -- 📌 v2.1: إضافة دعم الدفع الجزئي
+-- 📌 v3.0: إضافة discount_id (تتبع الخصم على مستوى الفاتورة)
 -- ============================================================
 CREATE TABLE invoices (
     id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -277,6 +281,7 @@ CREATE TABLE invoices (
     user_id        BIGINT UNSIGNED NOT NULL,
     subtotal       DECIMAL(10,2)   NOT NULL DEFAULT 0,
     discount       DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    discount_id    BIGINT UNSIGNED NULL,
     total          DECIMAL(10,2)   NOT NULL DEFAULT 0,
     paid_amount    DECIMAL(10,2)   NOT NULL DEFAULT 0,
     due_amount     DECIMAL(10,2)   NOT NULL DEFAULT 0,
@@ -287,10 +292,12 @@ CREATE TABLE invoices (
     updated_at     TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_invoices_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
     CONSTRAINT fk_invoices_user     FOREIGN KEY (user_id)     REFERENCES users(id),
+    CONSTRAINT fk_invoices_discount FOREIGN KEY (discount_id) REFERENCES discounts(id),
     UNIQUE KEY uq_invoices_number (invoice_number),
     INDEX idx_invoices_customer (customer_id),
     INDEX idx_invoices_status (status),
     INDEX idx_invoices_payment_status (payment_status),
+    INDEX idx_invoices_discount (discount_id),
     INDEX idx_invoices_created_at (created_at)
 );
 
@@ -300,6 +307,7 @@ CREATE TABLE invoices (
 -- يعتمد على: invoices, products, sizes
 -- تفاصيل المنتجات في الفاتورة
 -- 📌 v2.1: إضافة product_unit_cost (snapshot للتكلفة)
+-- 📌 v3.0: إضافة discount_id (تتبع الخصم المطبق)
 -- ============================================================
 CREATE TABLE invoice_items (
     id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -311,13 +319,16 @@ CREATE TABLE invoice_items (
     unit_price        DECIMAL(10,2)   NOT NULL,
     product_unit_cost DECIMAL(10,2)   NULL,
     discount          DECIMAL(10,2)   NOT NULL DEFAULT 0,
+    discount_id       BIGINT UNSIGNED NULL,
     total_price       DECIMAL(10,2)   NOT NULL,
     created_at        TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_invoice_items_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
     CONSTRAINT fk_invoice_items_product FOREIGN KEY (product_id) REFERENCES products(id),
     CONSTRAINT fk_invoice_items_size    FOREIGN KEY (size_id)    REFERENCES sizes(id),
+    CONSTRAINT fk_invoice_items_discount FOREIGN KEY (discount_id) REFERENCES discounts(id),
     INDEX idx_invoice_items_invoice (invoice_id),
-    INDEX idx_invoice_items_product (product_id)
+    INDEX idx_invoice_items_product (product_id),
+    INDEX idx_invoice_items_discount (discount_id)
 );
 
 
@@ -345,6 +356,7 @@ CREATE TABLE payments (
 -- يعتمد على: products, suppliers
 -- 📌 التبسيط: دمج purchase_batches + batch_inventory في جدول واحد
 -- تسجيل المشتريات مع متوسط التكلفة
+-- 📌 v3.0: إضافة batch_number (تتبع الدفعات)
 -- ============================================================
 CREATE TABLE purchases (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -354,11 +366,13 @@ CREATE TABLE purchases (
     unit_cost     DECIMAL(10,2)   NOT NULL,
     total_cost    DECIMAL(10,2)   NOT NULL,
     purchase_date DATE            NOT NULL,
+    batch_number  VARCHAR(50)     NULL,
     created_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_purchases_product  FOREIGN KEY (product_id)  REFERENCES products(id),
     CONSTRAINT fk_purchases_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
     INDEX idx_purchases_product       (product_id),
-    INDEX idx_purchases_purchase_date (purchase_date)
+    INDEX idx_purchases_purchase_date (purchase_date),
+    INDEX idx_purchases_batch         (batch_number)
 );
 
 
@@ -465,6 +479,7 @@ CREATE TABLE invoice_costs (
 -- 24. inventory_movements
 -- يعتمد على: products, users
 -- سجل موحد لكل حركات المخزون
+-- 📌 v3.0: إضافة batch_number (تتبع الدفعات)
 -- ============================================================
 CREATE TABLE inventory_movements (
     id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -475,6 +490,7 @@ CREATE TABLE inventory_movements (
     quantity_after DECIMAL(10,2)   NOT NULL,
     reference_type VARCHAR(50)     NULL,
     reference_id   BIGINT UNSIGNED NULL,
+    batch_number   VARCHAR(50)     NULL,
     user_id        BIGINT UNSIGNED NOT NULL,
     notes          TEXT            NULL,
     created_at     TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
@@ -483,6 +499,7 @@ CREATE TABLE inventory_movements (
     INDEX idx_inventory_movements_product (product_id),
     INDEX idx_inventory_movements_type    (movement_type),
     INDEX idx_inventory_movements_ref     (reference_type, reference_id),
+    INDEX idx_inventory_movements_batch   (batch_number),
     INDEX idx_inventory_movements_created (created_at)
 );
 

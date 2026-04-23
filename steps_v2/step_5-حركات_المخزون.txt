@@ -444,3 +444,205 @@ ORDER BY p.name, im.movement_type;
 ================================================================================
                                     انتهى
 ================================================================================
+
+
+================================================================================
+                        🆕 v3.0: تتبع الدفعات (batch_number)
+================================================================================
+
+📌 الحقل الجديد: batch_number في جدول inventory_movements
+
+🔧 الغرض: ربط حركات المخزون برقم دفعة الشراء لسحب منتجات معينة
+
+================================================================================
+                        📝 كيفية الاستخدام
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 1: تسجيل حركة دخول مع رقم دفعة (عند الشراء)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- بعد تسجيل الشراء
+INSERT INTO inventory_movements (product_id, movement_type, quantity,
+                                  quantity_before, quantity_after,
+                                  reference_type, reference_id, batch_number,
+                                  user_id, notes)
+VALUES (1, 'in', 200, 0, 200, 'purchase', 1, 'BATCH-2024-001', 1,
+        'شراء من مورد X - دفعة يناير 2024');
+
+✅ الفائدة: يمكن تتبع هذه الدفعة لاحقاً
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 2: تسجيل حركة خروج مع رقم دفعة (عند البيع - اختياري)                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- عند البيع، يمكن تسجيل رقم الدفعة
+INSERT INTO inventory_movements (product_id, movement_type, quantity,
+                                  quantity_before, quantity_after,
+                                  reference_type, reference_id, batch_number,
+                                  user_id, notes)
+VALUES (1, 'out', -5, 200, 195, 'invoice_item', 1, 'BATCH-2024-001', 1,
+        'بيع 5ml من دفعة يناير');
+
+✅ الفائدة: معرفة من اشترى من دفعة معينة
+
+
+================================================================================
+                        📊 استعلامات جديدة
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣ عرض حركات دفعة معينة                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    im.created_at,
+    p.name as product_name,
+    im.movement_type,
+    im.quantity,
+    im.reference_type,
+    im.notes
+FROM inventory_movements im
+JOIN products p ON im.product_id = p.id
+WHERE im.batch_number = 'BATCH-2024-001'
+ORDER BY im.created_at;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2️⃣ حساب الكمية المتبقية من دفعة معينة                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    p.name as product_name,
+    SUM(CASE WHEN im.movement_type = 'in' THEN im.quantity ELSE 0 END) as total_in,
+    SUM(CASE WHEN im.movement_type = 'out' THEN ABS(im.quantity) ELSE 0 END) as total_out,
+    SUM(im.quantity) as remaining_quantity
+FROM inventory_movements im
+JOIN products p ON im.product_id = p.id
+WHERE im.batch_number = 'BATCH-2024-001'
+GROUP BY p.id, p.name;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3️⃣ معرفة من اشترى من دفعة معينة (لسحب المنتج)                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    i.invoice_number,
+    i.created_at as sale_date,
+    c.name as customer_name,
+    c.phone as customer_phone,
+    p.name as product_name,
+    im.quantity
+FROM inventory_movements im
+JOIN invoice_items ii ON im.reference_id = ii.id AND im.reference_type = 'invoice_item'
+JOIN invoices i ON ii.invoice_id = i.id
+JOIN products p ON im.product_id = p.id
+LEFT JOIN customers c ON i.customer_id = c.id
+WHERE im.batch_number = 'BATCH-2024-001'
+  AND im.movement_type = 'out'
+ORDER BY i.created_at DESC;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4️⃣ الدفعات النشطة (لها كمية متبقية)                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    im.batch_number,
+    p.name as product_name,
+    MIN(im.created_at) as first_movement,
+    MAX(im.created_at) as last_movement,
+    SUM(im.quantity) as remaining_quantity
+FROM inventory_movements im
+JOIN products p ON im.product_id = p.id
+WHERE im.batch_number IS NOT NULL
+GROUP BY im.batch_number, p.name
+HAVING remaining_quantity > 0
+ORDER BY first_movement DESC;
+
+
+================================================================================
+                        🚨 سيناريو: سحب منتج (Product Recall)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ الخطوة 1: اكتشاف مشكلة في دفعة BATCH-2024-001                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- إيقاف الدفعة
+UPDATE purchases 
+SET notes = '⚠️ موقوف - مشكلة جودة'
+WHERE batch_number = 'BATCH-2024-001';
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ الخطوة 2: معرفة الكمية المتبقية                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT SUM(quantity) as remaining
+FROM inventory_movements
+WHERE batch_number = 'BATCH-2024-001';
+
+-- النتيجة: 150ml متبقية
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ الخطوة 3: سحب الكمية المتبقية من المخزون                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- سحب من المخزون
+UPDATE inventory 
+SET quantity = quantity - 150
+WHERE product_id = 1;
+
+-- تسجيل الحركة
+INSERT INTO inventory_movements (product_id, movement_type, quantity,
+                                  quantity_before, quantity_after,
+                                  reference_type, batch_number, user_id, notes)
+VALUES (1, 'adjustment', -150, 190, 40, 'recall', 'BATCH-2024-001', 1,
+        'سحب منتج - دفعة BATCH-2024-001 - مشكلة جودة');
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ الخطوة 4: التواصل مع العملاء                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- قائمة العملاء الذين اشتروا من هذه الدفعة
+SELECT DISTINCT
+    c.name,
+    c.phone,
+    c.email
+FROM inventory_movements im
+JOIN invoice_items ii ON im.reference_id = ii.id AND im.reference_type = 'invoice_item'
+JOIN invoices i ON ii.invoice_id = i.id
+JOIN customers c ON i.customer_id = c.id
+WHERE im.batch_number = 'BATCH-2024-001'
+  AND im.movement_type = 'out'
+  AND c.phone IS NOT NULL;
+
+
+================================================================================
+                        🎯 الفوائد
+================================================================================
+
+✅ تتبع دقيق: معرفة مصدر كل منتج في المخزون
+✅ سحب سريع: إمكانية سحب دفعة كاملة عند اكتشاف مشاكل
+✅ حماية العملاء: التواصل الفوري مع من اشترى من دفعة معينة
+✅ تحليل الموردين: معرفة أي مورد يسبب مشاكل متكررة
+✅ إدارة FEFO: تتبع الدفعات القديمة (First Expired First Out)
+
+
+================================================================================
+                        ⚠️ ملاحظات مهمة
+================================================================================
+
+1. ✅ batch_number اختياري (NULL) - ليس إلزامياً لجميع الحركات
+2. ✅ يُنصح باستخدامه للمنتجات الحساسة (عطور، مواد غذائية)
+3. ✅ عند البيع، تسجيل batch_number اختياري (للتتبع الكامل)
+4. ✅ يمكن استخدام نظام ترقيم موحد: BATCH-YYYY-NNN
+5. ✅ للمزيد من التفاصيل، راجع: BATCH_TRACKING_GUIDE.md
+
+
+النظام الآن يدعم تتبع الدفعات وسحب المنتجات بسرعة! 🚀

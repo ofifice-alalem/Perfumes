@@ -84,6 +84,7 @@ Constraints:
 
 📌 الغرض: تعريف المنتج الكامل مع تحديد طريقة بيعه
 📌 v2.1: إضافة SKU للتتبع الفريد
+📌 v3.0: إضافة is_returnable للتحكم في سياسة المرتجعات
 
 الحقل              النوع         العلاقة                  القيمة الافتراضية    الوصف
 ──────────────────────────────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ sku                VARCHAR(50)   —                        NULL                
 category_id        BIGINT        FK → categories.id       —                     التصنيف
 price_tier_id      BIGINT        FK → price_tiers.id      —                     مستوى الجودة
 selling_type       ENUM          —                        —                     نوع البيع
+is_returnable      BOOLEAN       —                        TRUE                  هل المنتج قابل للإرجاع؟
 created_at         TIMESTAMP     —                        CURRENT_TIMESTAMP     تاريخ الإنشاء
 updated_at         TIMESTAMP     —                        CURRENT_TIMESTAMP     تاريخ التحديث
 
@@ -104,12 +106,17 @@ ENUM selling_type:
 
 Constraints:
    UNIQUE (sku)
+   INDEX (is_returnable)
 
 📌 أمثلة:
-   Lacoste White  → category: عطور زيتية | tier: A | selling_type: DECANT_ONLY | sku: 'LAC-WHT-001'
-   Dior Sauvage   → category: عطور زيتية | tier: C | selling_type: BOTH | sku: 'DIO-SAU-001'
-   بخور عود       → category: بخور       | tier: B | selling_type: UNIT_BASED | sku: 'BKH-OUD-001'
-   وشق مسك        → category: وشق        | tier: A | selling_type: UNIT_BASED | sku: 'WSH-MSK-001'
+   Lacoste White  → category: عطور زيتية | tier: A | selling_type: DECANT_ONLY | sku: 'LAC-WHT-001' | is_returnable: TRUE
+   Dior Sauvage   → category: عطور زيتية | tier: C | selling_type: BOTH | sku: 'DIO-SAU-001' | is_returnable: TRUE
+   بخور عود       → category: بخور       | tier: B | selling_type: UNIT_BASED | sku: 'BKH-OUD-001' | is_returnable: TRUE
+   عينة مفتوحة    → category: عطور زيتية | tier: A | selling_type: DECANT_ONLY | sku: 'SAMPLE-001' | is_returnable: FALSE
+
+📌 v3.0: is_returnable يتحكم في سياسة المرتجعات:
+   - TRUE (افتراضي): المنتج قابل للإرجاع
+   - FALSE: المنتج غير قابل للإرجاع (عينات، منتجات مفتوحة، تالفة)
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -414,3 +421,83 @@ Constraints:
 ================================================================================
                                     انتهى
 ================================================================================
+
+
+================================================================================
+                        🆕 v3.0: التحكم في سياسة المرتجعات
+================================================================================
+
+📌 الحقل الجديد: is_returnable في جدول products
+
+🔧 الغرض: تحديد المنتجات القابلة للإرجاع من عدمه
+
+================================================================================
+                        📝 أمثلة الاستخدام
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 1: إنشاء منتج قابل للإرجاع (الافتراضي)                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+INSERT INTO products (name, category_id, price_tier_id, selling_type, sku, is_returnable)
+VALUES ('Lacoste White', 1, 1, 'DECANT_ONLY', 'LAC-WHT-001', TRUE);
+
+✅ النتيجة: المنتج قابل للإرجاع (القيمة الافتراضية)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 2: إنشاء منتج غير قابل للإرجاع                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- عينة مفتوحة
+INSERT INTO products (name, category_id, price_tier_id, selling_type, sku, is_returnable)
+VALUES ('عينة Lacoste (مفتوح)', 1, 1, 'DECANT_ONLY', 'SAMPLE-001', FALSE);
+
+-- منتج تالف أو مخفض
+INSERT INTO products (name, category_id, price_tier_id, selling_type, sku, is_returnable)
+VALUES ('Dior Sauvage (تصفية)', 1, 3, 'BOTH', 'DIO-SAU-SALE', FALSE);
+
+✅ النتيجة: هذه المنتجات غير قابلة للإرجاع
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 3: تحديث منتج ليصبح غير قابل للإرجاع                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- بعد فتح العبوة للعميل
+UPDATE products 
+SET is_returnable = FALSE,
+    name = CONCAT(name, ' (مفتوح)')
+WHERE id = 5;
+
+✅ الاستخدام: عند تحويل منتج إلى عينة
+
+
+================================================================================
+                        📊 استعلامات مفيدة
+================================================================================
+
+-- عرض المنتجات غير القابلة للإرجاع
+SELECT p.id, p.name, p.sku, c.name as category
+FROM products p
+JOIN categories c ON p.category_id = c.id
+WHERE p.is_returnable = FALSE;
+
+-- عدد المنتجات حسب سياسة الإرجاع
+SELECT 
+    is_returnable,
+    COUNT(*) as product_count,
+    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM products), 2) as percentage
+FROM products
+GROUP BY is_returnable;
+
+
+================================================================================
+                        ⚠️ قواعد العمل
+================================================================================
+
+1. ✅ القيمة الافتراضية TRUE (جميع المنتجات قابلة للإرجاع)
+2. ✅ يُنصح بتعيين FALSE للعينات والمنتجات المفتوحة
+3. ✅ يمكن تغيير القيمة في أي وقت
+4. ✅ يجب التحقق من is_returnable قبل قبول أي مرتجع (في المرحلة 6)
+5. ✅ يُنصح بإعلام العميل عند الشراء إذا كان المنتج غير قابل للإرجاع

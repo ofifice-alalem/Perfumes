@@ -347,3 +347,209 @@ Constraints:
 ================================================================================
                                     انتهى الجزء الأول
 ================================================================================
+
+
+================================================================================
+                        🆕 v2.1 & v3.0: التحديثات الجديدة
+================================================================================
+
+📌 هذا القسم يوثق التحسينات المضافة في الإصدارات v2.1 و v3.0
+
+================================================================================
+                        1️⃣ v3.0: batch_number في purchases
+================================================================================
+
+📌 الغرض: تتبع دفعات المشتريات لسحب منتجات معينة عند اكتشاف مشاكل
+
+🔧 التعديل:
+   - إضافة batch_number VARCHAR(50) NULL في جدول purchases
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال: شراء منتج مع رقم دفعة                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+INSERT INTO purchases (product_id, supplier_id, quantity, unit_cost, total_cost,
+                       purchase_date, batch_number)
+VALUES (1, 1, 200, 0.5, 100, '2024-01-15', 'BATCH-2024-001');
+
+✅ الفائدة: يمكن تتبع هذه الدفعة لاحقاً
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ استعلام: عرض المشتريات حسب الدفعة                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    pu.batch_number,
+    p.name as product_name,
+    s.name as supplier_name,
+    pu.purchase_date,
+    pu.quantity,
+    pu.unit_cost,
+    pu.total_cost
+FROM purchases pu
+JOIN products p ON pu.product_id = p.id
+LEFT JOIN suppliers s ON pu.supplier_id = s.id
+WHERE pu.batch_number = 'BATCH-2024-001';
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ سيناريو: سحب منتج (Product Recall)                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- 1. إيقاف الدفعة
+UPDATE purchases 
+SET notes = '⚠️ موقوف - مشكلة جودة'
+WHERE batch_number = 'BATCH-2024-001';
+
+-- 2. معرفة من اشترى من هذه الدفعة
+SELECT 
+    i.invoice_number,
+    c.name as customer_name,
+    c.phone,
+    ii.quantity
+FROM inventory_movements im
+JOIN invoice_items ii ON im.reference_id = ii.id AND im.reference_type = 'sale'
+JOIN invoices i ON ii.invoice_id = i.id
+LEFT JOIN customers c ON i.customer_id = c.id
+WHERE im.batch_number = 'BATCH-2024-001';
+
+-- 3. التواصل مع العملاء للاستبدال
+
+📌 للمزيد من التفاصيل، راجع: BATCH_TRACKING_GUIDE.md
+
+
+================================================================================
+                        2️⃣ v2.1: waste_percentage في recipe_items
+================================================================================
+
+📌 الغرض: حساب الهدر الطبيعي للمواد (تبخر الكحول، كسر الزجاج، إلخ)
+
+🔧 التعديل:
+   - إضافة waste_percentage DECIMAL(5,2) DEFAULT 0 في جدول recipe_items
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ الصيغة الجديدة لحساب الكمية المستخدمة                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+الكمية الفعلية = quantity × (1 + waste_percentage / 100)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال: وصفة مع نسبة هدر                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- وصفة Lacoste White 5ml
+INSERT INTO recipe_items (recipe_id, material_id, quantity, waste_percentage, unit)
+VALUES 
+(1, 1, 10, 5, 'ml'),      -- كحول: 10ml + 5% هدر = 10.5ml فعلياً
+(1, 2, 1, 2, 'pcs');      -- زجاجة: 1 قطعة + 2% هدر = 1.02 قطعة
+
+✅ الحساب:
+   - كحول: 10 × (1 + 5/100) = 10 × 1.05 = 10.5ml
+   - زجاجة: 1 × (1 + 2/100) = 1 × 1.02 = 1.02 قطعة
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ استعلام: حساب التكلفة مع الهدر                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    r.id as recipe_id,
+    p.name as product_name,
+    ri.quantity as base_quantity,
+    ri.waste_percentage,
+    ri.quantity * (1 + ri.waste_percentage / 100) as actual_quantity,
+    mt.avg_cost as cost_per_unit,
+    (ri.quantity * (1 + ri.waste_percentage / 100)) * mt.avg_cost as total_cost
+FROM recipes r
+JOIN products p ON r.product_id = p.id
+JOIN recipe_items ri ON r.id = ri.recipe_id
+JOIN material_types mt ON ri.material_id = mt.id
+WHERE r.id = 1;
+
+📌 الفائدة: حساب دقيق للتكاليف الفعلية
+
+
+================================================================================
+                        3️⃣ v2.1: product_unit_cost في invoice_items
+================================================================================
+
+📌 الغرض: حفظ تكلفة المنتج وقت البيع (snapshot) لحساب الربح الحقيقي
+
+🔧 التعديل:
+   - إضافة product_unit_cost DECIMAL(10,2) NULL في جدول invoice_items
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ كيفية الحساب عند البيع                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- حساب متوسط تكلفة المنتج من جدول purchases
+SELECT AVG(unit_cost) INTO @avg_cost 
+FROM purchases 
+WHERE product_id = ?;
+
+-- تخزينها في invoice_items
+INSERT INTO invoice_items (invoice_id, product_id, sale_type, size_id,
+                            quantity, unit_price, product_unit_cost, total_price)
+VALUES (1, 1, 'decant', 3, 1, 40, @avg_cost, 40);
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال: حساب الربح الحقيقي                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- الفاتورة:
+-- Lacoste White 5ml
+-- السعر: 40 دينار
+-- التكلفة المحفوظة: 0.5 دينار/ml × 5ml = 2.5 دينار
+
+SELECT 
+    ii.id,
+    p.name,
+    ii.quantity,
+    ii.unit_price,
+    ii.product_unit_cost,
+    ii.total_price,
+    ii.total_price - (ii.product_unit_cost * ii.quantity) as profit
+FROM invoice_items ii
+JOIN products p ON ii.product_id = p.id
+WHERE ii.invoice_id = 1;
+
+✅ النتيجة:
+   | name          | quantity | unit_price | product_unit_cost | total_price | profit |
+   |---------------|----------|------------|-------------------|-------------|--------|
+   | Lacoste White | 5        | 40         | 0.5               | 40          | 37.5   |
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ الفائدة: دقة محاسبية عالية                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+✅ حفظ التكلفة وقت البيع (لا تتأثر بتغيير أسعار الشراء لاحقاً)
+✅ حساب الربح الحقيقي لكل عملية بيع
+✅ تقارير دقيقة عن الأرباح
+
+
+================================================================================
+                        📊 تقرير شامل: الربح مع التكاليف الكاملة
+================================================================================
+
+SELECT 
+    i.invoice_number,
+    i.created_at,
+    i.total as revenue,
+    ic.product_cost,
+    ic.material_cost,
+    ic.total_cost,
+    i.total - ic.total_cost as net_profit,
+    ROUND((i.total - ic.total_cost) * 100.0 / i.total, 2) as profit_margin_percentage
+FROM invoices i
+LEFT JOIN invoice_costs ic ON i.id = ic.invoice_id
+WHERE i.status = 'completed'
+ORDER BY i.created_at DESC;
+
+
+================================================================================
+                        🎯 الفوائد الإجمالية
+================================================================================
+
+✅ batch_number: سحب منتجات بسرعة عند اكتشاف مشاكل جودة
+✅ waste_percentage: حساب دقيق للتكاليف مع مراعاة الهدر الطبيعي
+✅ product_unit_cost: حفظ snapshot التكلفة لحساب الربح الحقيقي
+
+النظام الآن يدعم دقة محاسبية عالية وأمان أفضل! 🚀

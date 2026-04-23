@@ -9,7 +9,7 @@
 ✅ يدعم مرتجع جزئي (بعض المنتجات من الفاتورة).
 
 ================================================================================
-                        🗂️ الجداول المستخدمة (2 جداول)
+                        🗂️ الجداول المستخدمة (3 جداول)
 ================================================================================
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -17,17 +17,20 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 
 📌 الغرض: رأس طلب المرتجع — يمثل عملية الإرجاع من لحظة الإنشاء حتى الاكتمال
+📌 v2.1: إضافة restock_fee لرسوم إعادة التخزين
 
-الحقل              النوع          العلاقة             القيمة الافتراضية    الوصف
-──────────────────────────────────────────────────────────────────────────────────
-id                 BIGINT         PK                  AUTO_INCREMENT        المعرف
-invoice_id         BIGINT         FK → invoices.id    —                     الفاتورة الأصلية
-user_id            BIGINT         FK → users.id       —                     المستخدم المنشئ
-reason             TEXT           —                   NULL                  سبب الإرجاع
-refund_amount      DECIMAL(10,2)  —                   0                     المبلغ المسترد
-status             ENUM           —                   'pending'             حالة المرتجع
-created_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ الإنشاء
-updated_at         TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ التحديث
+الحقل                  النوع          العلاقة             القيمة الافتراضية    الوصف
+──────────────────────────────────────────────────────────────────────────────────────
+id                     BIGINT         PK                  AUTO_INCREMENT        المعرف
+invoice_id             BIGINT         FK → invoices.id    —                     الفاتورة الأصلية
+user_id                BIGINT         FK → users.id       —                     المستخدم المنشئ
+reason                 TEXT           —                   NULL                  سبب الإرجاع
+refund_amount          DECIMAL(10,2)  —                   0                     المبلغ المسترد
+restock_fee            DECIMAL(10,2)  —                   0                     رسوم إعادة التخزين
+restock_fee_percentage DECIMAL(5,2)   —                   NULL                  نسبة رسوم إعادة التخزين
+status                 ENUM           —                   'pending'             حالة المرتجع
+created_at             TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ الإنشاء
+updated_at             TIMESTAMP      —                   CURRENT_TIMESTAMP     تاريخ التحديث
 
 ENUM status:
    'pending'    → قيد المراجعة
@@ -60,6 +63,32 @@ Constraints:
    FOREIGN KEY (return_id) ON DELETE CASCADE
    INDEX (return_id)
    INDEX (product_id)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3️⃣ return_cost_reversals                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+📌 الغرض: عكس التكاليف عند المرتجع — لحساب الأرباح بدقة
+📌 v2.1: جدول جديد لدقة حساب الأرباح
+
+الحقل              النوع          العلاقة                   القيمة الافتراضية    الوصف
+────────────────────────────────────────────────────────────────────────────────────────
+id                 BIGINT         PK                        AUTO_INCREMENT        المعرف
+return_id          BIGINT         FK → returns.id          —                     المرتجع
+invoice_cost_id    BIGINT         FK → invoice_costs.id    —                     تكلفة الفاتورة الأصلية
+product_cost       DECIMAL(10,2)  —                         0                     تكلفة المنتجات المعكوسة
+material_cost      DECIMAL(10,2)  —                         0                     تكلفة المواد المعكوسة
+total_cost         DECIMAL(10,2)  —                         0                     إجمالي التكلفة المعكوسة
+created_at         TIMESTAMP      —                         CURRENT_TIMESTAMP     تاريخ الإنشاء
+
+Constraints:
+   UNIQUE (return_id)
+   INDEX (invoice_cost_id)
+
+📌 الفائدة:
+   عند إتمام مرتجع، يتم عكس التكاليف المسجلة في invoice_costs
+   لحساب الربح الحقيقي بعد المرتجعات
 
 
 ================================================================================
@@ -663,3 +692,276 @@ WHERE p.id = ?;
 ✅ وضوح للعميل: معرفة السياسة قبل الشراء
 ✅ تقليل النزاعات: قواعد واضحة ومسجلة
 ✅ مرونة: يمكن تغيير السياسة حسب الحاجة
+
+
+================================================================================
+                        🆕 v2.1: رسوم إعادة التخزين (restock_fee)
+================================================================================
+
+📌 الغرض: خصم نسبة من المبلغ المسترد كرسوم إعادة تخزين
+
+🔧 الحقول الجديدة في جدول returns:
+   - restock_fee (DECIMAL(10,2)): المبلغ المخصوم
+   - restock_fee_percentage (DECIMAL(5,2)): النسبة المئوية
+
+================================================================================
+                        📝 أمثلة الاستخدام
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 1: مرتجع مع رسوم إعادة تخزين 10%                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- الفاتورة الأصلية: 100 دينار
+-- المرتجع: 100 دينار
+-- رسوم إعادة التخزين: 10%
+
+-- حساب الرسوم
+SET @refund_before_fee = 100;
+SET @restock_percentage = 10;
+SET @restock_fee = @refund_before_fee * (@restock_percentage / 100);
+SET @final_refund = @refund_before_fee - @restock_fee;
+
+-- إنشاء المرتجع
+INSERT INTO returns (invoice_id, user_id, reason, refund_amount, 
+                     restock_fee, restock_fee_percentage, status)
+VALUES (1, 1, 'المنتج لا يناسب العميل', 90, 10, 10, 'completed');
+
+✅ النتيجة:
+   - المبلغ الأصلي: 100 دينار
+   - رسوم إعادة التخزين: 10 دينار (10%)
+   - المبلغ المسترد: 90 دينار
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 2: مرتجع بدون رسوم                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- في حالة عيب في المنتج (لا رسوم)
+INSERT INTO returns (invoice_id, user_id, reason, refund_amount, 
+                     restock_fee, restock_fee_percentage, status)
+VALUES (2, 1, 'عيب في المنتج', 100, 0, 0, 'completed');
+
+✅ النتيجة: المبلغ المسترد كاملاً = 100 دينار
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال 3: رسوم ثابتة بدلاً من نسبة مئوية                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- رسوم ثابتة 5 دينار
+INSERT INTO returns (invoice_id, user_id, reason, refund_amount, 
+                     restock_fee, restock_fee_percentage, status)
+VALUES (3, 1, 'تغيير رأي العميل', 95, 5, NULL, 'completed');
+
+✅ النتيجة:
+   - المبلغ الأصلي: 100 دينار
+   - رسوم ثابتة: 5 دينار
+   - المبلغ المسترد: 95 دينار
+
+
+================================================================================
+                        📊 استعلامات مفيدة
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣ إجمالي رسوم إعادة التخزين                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    DATE(updated_at) as return_date,
+    COUNT(*) as total_returns,
+    SUM(refund_amount + restock_fee) as original_amount,
+    SUM(restock_fee) as total_restock_fees,
+    SUM(refund_amount) as total_refunded,
+    ROUND(SUM(restock_fee) * 100.0 / SUM(refund_amount + restock_fee), 2) as avg_fee_percentage
+FROM returns
+WHERE status = 'completed'
+  AND updated_at BETWEEN '2024-01-01' AND '2024-01-31'
+GROUP BY DATE(updated_at)
+ORDER BY return_date DESC;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2️⃣ المرتجعات حسب نوع الرسوم                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    CASE 
+        WHEN restock_fee = 0 THEN 'بدون رسوم'
+        WHEN restock_fee_percentage IS NOT NULL THEN 'رسوم نسبة مئوية'
+        ELSE 'رسوم ثابتة'
+    END as fee_type,
+    COUNT(*) as return_count,
+    SUM(refund_amount) as total_refunded,
+    SUM(restock_fee) as total_fees
+FROM returns
+WHERE status = 'completed'
+GROUP BY fee_type;
+
+
+================================================================================
+                        🆕 v2.1: عكس التكاليف (return_cost_reversals)
+================================================================================
+
+📌 الغرض: عكس التكاليف المسجلة في invoice_costs عند المرتجع لحساب الربح الحقيقي
+
+================================================================================
+                        📝 كيفية الاستخدام
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ السيناريو: مرتجع كامل لفاتورة                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- الفاتورة الأصلية:
+-- invoice_id = 1
+-- total = 150 دينار
+-- invoice_costs: product_cost = 50, material_cost = 10, total_cost = 60
+
+-- الخطوة 1: إنشاء المرتجع
+INSERT INTO returns (invoice_id, user_id, reason, refund_amount, status)
+VALUES (1, 1, 'عيب في المنتج', 150, 'completed');
+-- return_id = 1
+
+-- الخطوة 2: عكس التكاليف
+INSERT INTO return_cost_reversals (return_id, invoice_cost_id, 
+                                    product_cost, material_cost, total_cost)
+SELECT 
+    1,  -- return_id
+    ic.id,
+    ic.product_cost,
+    ic.material_cost,
+    ic.total_cost
+FROM invoice_costs ic
+WHERE ic.invoice_id = 1;
+
+✅ النتيجة:
+   - التكاليف الأصلية: 60 دينار
+   - التكاليف المعكوسة: -60 دينار
+   - صافي التكلفة: 0 دينار
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ مثال: مرتجع جزئي                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+-- الفاتورة: 3 منتجات بتكلفة إجمالية 60 دينار
+-- المرتجع: منتج واحد بتكلفة 20 دينار
+
+-- حساب التكلفة النسبية
+SET @original_total = 150;
+SET @refund_amount = 50;
+SET @cost_ratio = @refund_amount / @original_total;  -- 0.333
+
+SET @original_product_cost = 50;
+SET @original_material_cost = 10;
+SET @reversed_product_cost = @original_product_cost * @cost_ratio;  -- 16.67
+SET @reversed_material_cost = @original_material_cost * @cost_ratio;  -- 3.33
+
+-- تسجيل عكس التكلفة
+INSERT INTO return_cost_reversals (return_id, invoice_cost_id, 
+                                    product_cost, material_cost, total_cost)
+VALUES (2, 1, 16.67, 3.33, 20);
+
+
+================================================================================
+                        📊 استعلامات حساب الربح الحقيقي
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣ الربح الحقيقي بعد المرتجعات                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    i.invoice_number,
+    i.total as revenue,
+    ic.total_cost as original_cost,
+    COALESCE(rcr.total_cost, 0) as reversed_cost,
+    ic.total_cost - COALESCE(rcr.total_cost, 0) as net_cost,
+    i.total - (ic.total_cost - COALESCE(rcr.total_cost, 0)) as net_profit
+FROM invoices i
+LEFT JOIN invoice_costs ic ON i.id = ic.invoice_id
+LEFT JOIN returns r ON i.id = r.invoice_id AND r.status = 'completed'
+LEFT JOIN return_cost_reversals rcr ON r.id = rcr.return_id
+WHERE i.status = 'completed'
+ORDER BY i.created_at DESC;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2️⃣ تقرير شامل: المبيعات والتكاليف والمرتجعات                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    DATE(i.created_at) as sale_date,
+    COUNT(DISTINCT i.id) as total_invoices,
+    SUM(i.total) as total_revenue,
+    SUM(ic.total_cost) as total_cost,
+    SUM(COALESCE(r.refund_amount, 0)) as total_refunds,
+    SUM(COALESCE(rcr.total_cost, 0)) as reversed_costs,
+    SUM(i.total) - SUM(COALESCE(r.refund_amount, 0)) as net_revenue,
+    SUM(ic.total_cost) - SUM(COALESCE(rcr.total_cost, 0)) as net_cost,
+    (SUM(i.total) - SUM(COALESCE(r.refund_amount, 0))) - 
+    (SUM(ic.total_cost) - SUM(COALESCE(rcr.total_cost, 0))) as net_profit
+FROM invoices i
+LEFT JOIN invoice_costs ic ON i.id = ic.invoice_id
+LEFT JOIN returns r ON i.id = r.invoice_id AND r.status = 'completed'
+LEFT JOIN return_cost_reversals rcr ON r.id = rcr.return_id
+WHERE i.status = 'completed'
+  AND i.created_at BETWEEN '2024-01-01' AND '2024-01-31'
+GROUP BY DATE(i.created_at)
+ORDER BY sale_date DESC;
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3️⃣ الفواتير التي لها مرتجعات مع تفاصيل التكاليف                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SELECT 
+    i.invoice_number,
+    i.total as original_total,
+    r.refund_amount,
+    r.restock_fee,
+    ic.product_cost as original_product_cost,
+    ic.material_cost as original_material_cost,
+    rcr.product_cost as reversed_product_cost,
+    rcr.material_cost as reversed_material_cost,
+    (ic.product_cost - COALESCE(rcr.product_cost, 0)) as net_product_cost,
+    (ic.material_cost - COALESCE(rcr.material_cost, 0)) as net_material_cost
+FROM invoices i
+JOIN invoice_costs ic ON i.id = ic.invoice_id
+JOIN returns r ON i.id = r.invoice_id
+LEFT JOIN return_cost_reversals rcr ON r.id = rcr.return_id
+WHERE r.status = 'completed'
+ORDER BY i.created_at DESC;
+
+
+================================================================================
+                        ⚠️ قواعد العمل
+================================================================================
+
+1. ✅ restock_fee يُخصم من refund_amount
+2. ✅ restock_fee_percentage اختياري (NULL إذا كانت رسوم ثابتة)
+3. ✅ return_cost_reversals يُنشأ تلقائياً عند إتمام المرتجع
+4. ✅ UNIQUE (return_id) في return_cost_reversals - مرتجع واحد له عكس واحد
+5. ✅ التكاليف المعكوسة تُحسب نسبياً في حالة المرتجع الجزئي
+
+
+================================================================================
+                        🎯 الفوائد
+================================================================================
+
+✅ restock_fee:
+   - تعويض تكاليف إعادة التخزين
+   - تقليل المرتجعات غير الضرورية
+   - مرونة في تطبيق الرسوم (نسبة أو ثابت)
+
+✅ return_cost_reversals:
+   - حساب دقيق للربح الحقيقي
+   - تتبع تأثير المرتجعات على التكاليف
+   - تقارير مالية دقيقة
+
+
+================================================================================
+                                    انتهى
+================================================================================

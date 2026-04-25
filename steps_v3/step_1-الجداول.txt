@@ -18,7 +18,7 @@
    الفاتورة تتتبع حالة الدفع، والسطر يحفظ السعر وقت البيع (snapshot).
 
 ================================================================================
-                        🗂️ الجداول (13 جدول)
+                        🗂️ الجداول (17 جدول)
 ================================================================================
 
    1.  users
@@ -34,6 +34,10 @@
    11. invoice_items
    12. payments
    13. original_perfume_details
+   14. suppliers
+   15. purchases
+   16. purchase_items
+   17. supplier_payments
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -530,6 +534,133 @@ Constraints:
    Chanel No.5    → bottle_volume: 100
    Bleu de Chanel → bottle_volume: 150
 
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣4️⃣ suppliers                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+📌 الوظيفة:
+   تسجيل بيانات الموردين لتتبع المشتريات والمدفوعات.
+   نفس منطق customers لكن من جهة الشراء —
+   أنت المشتري والمورد هو البائع.
+
+الحقل              النوع           القيمة الافتراضية    الوصف
+──────────────────────────────────────────────────────────────────────────────
+id                 BIGINT          AUTO_INCREMENT        المعرف
+name               VARCHAR(255)    —                     اسم المورد
+phone              VARCHAR(20)     —                     رقم الهاتف (إلزامي)
+email              VARCHAR(255)    NULL                  البريد الإلكتروني
+address            TEXT            NULL                  العنوان
+total_purchases    DECIMAL(10,2)   0                     إجمالي المشتريات منه
+total_debt         DECIMAL(10,2)   0                     إجمالي ما تدين له
+is_active          BOOLEAN         TRUE                  حالة النشاط
+created_at         TIMESTAMP       CURRENT_TIMESTAMP     تاريخ التسجيل
+updated_at         TIMESTAMP       CURRENT_TIMESTAMP     تاريخ التحديث
+
+Constraints:
+   UNIQUE (phone)
+   INDEX (is_active)
+
+📌 قاعدة total_debt:
+   عند إنشاء فاتورة شراء جديدة: total_debt += due_amount
+   عند تسجيل دفعة للمورد:       total_debt -= payment.amount
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣5️⃣ purchases                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+📌 الوظيفة:
+   رأس فاتورة الشراء — نفس منطق invoices لكن معكوس.
+   كل عملية شراء من مورد = فاتورة شراء.
+   الإجمالي يُحسب من مجموع أسطر purchase_items.
+   تفاصيل الدفع للمورد تُسجَّل في supplier_payments.
+
+الحقل              النوع           العلاقة                القيمة الافتراضية    الوصف
+──────────────────────────────────────────────────────────────────────────────────────
+id                 BIGINT          PK                     AUTO_INCREMENT        المعرف
+supplier_id        BIGINT          FK → suppliers.id      —                     المورد
+total              DECIMAL(10,2)   —                      0                     الإجمالي
+paid_amount        DECIMAL(10,2)   —                      0                     المدفوع
+due_amount         DECIMAL(10,2)   —                      0                     المتبقي
+payment_status     ENUM            —                      'unpaid'              حالة الدفع
+notes              TEXT            —                      NULL                  ملاحظات
+created_at         TIMESTAMP       —                      CURRENT_TIMESTAMP     تاريخ الشراء
+updated_at         TIMESTAMP       —                      CURRENT_TIMESTAMP     تاريخ التحديث
+
+ENUM payment_status:
+   'unpaid'  → لم يُدفع شيء بعد
+   'partial' → دُفع جزء
+   'paid'    → مدفوع بالكامل
+
+Constraints:
+   INDEX (supplier_id)
+   INDEX (payment_status)
+   INDEX (created_at)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣6️⃣ purchase_items                                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+📌 الوظيفة:
+   أسطر فاتورة الشراء — نفس منطق invoice_items.
+   كل سطر يمثل منتجاً واحداً مع كميته وسعر شرائه.
+   عند إضافة السطر: products.stock += quantity تلقائياً.
+   يحفظ سعر الشراء وقت الشراء (snapshot) لتتبع تغير الأسعار.
+
+الحقل              النوع           العلاقة                القيمة الافتراضية    الوصف
+──────────────────────────────────────────────────────────────────────────────────────
+id                 BIGINT          PK                     AUTO_INCREMENT        المعرف
+purchase_id        BIGINT          FK → purchases.id      —                     فاتورة الشراء
+product_id         BIGINT          FK → products.id       —                     المنتج
+quantity           DECIMAL(10,2)   —                      —                     الكمية المشتراة
+unit_cost          DECIMAL(10,2)   —                      —                     سعر الوحدة وقت الشراء (snapshot)
+line_total         DECIMAL(10,2)   —                      —                     الإجمالي = unit_cost × quantity
+created_at         TIMESTAMP       —                      CURRENT_TIMESTAMP     تاريخ الإنشاء
+
+Constraints:
+   FOREIGN KEY (purchase_id) ON DELETE CASCADE
+   INDEX (purchase_id)
+   INDEX (product_id)
+
+📌 قاعدة تحديث المخزون:
+   عند إضافة سطر: products.stock += quantity
+   مثال: شراء 200ml من Dior Sauvage → stock += 200
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1️⃣7️⃣ supplier_payments                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+📌 الوظيفة:
+   تسجيل كل دفعة تدفعها للمورد — نفس منطق payments.
+   فاتورة شراء واحدة يمكن أن تُدفع على مراحل أو بوسائل متعددة.
+   مثال: فاتورة 500 دينار → 300 نقدي + 200 تحويل بنكي.
+
+الحقل                النوع           العلاقة                    القيمة الافتراضية    الوصف
+──────────────────────────────────────────────────────────────────────────────────────────
+id                   BIGINT          PK                         AUTO_INCREMENT        المعرف
+purchase_id          BIGINT          FK → purchases.id          —                     فاتورة الشراء
+payment_method_id    BIGINT          FK → payment_methods.id    —                     وسيلة الدفع
+amount               DECIMAL(10,2)   —                          —                     المبلغ المدفوع
+notes                VARCHAR(255)    —                          NULL                  ملاحظة
+created_at           TIMESTAMP       —                          CURRENT_TIMESTAMP     تاريخ الدفعة
+
+Constraints:
+   INDEX (purchase_id)
+   INDEX (created_at)
+
+📌 عند إضافة دفعة:
+   1. INSERT في supplier_payments
+   2. UPDATE purchases:
+        paid_amount = SUM(supplier_payments.amount) WHERE purchase_id = ?
+        due_amount  = total - paid_amount
+        payment_status يُحدَّث تلقائياً
+   3. UPDATE suppliers:
+        total_debt -= amount
+
 ================================================================================
                         🔄 مخطط العلاقات الكاملة
 ================================================================================
@@ -567,6 +698,13 @@ Constraints:
 
    original_perfume_details
      └── product_id  [عطور أصلية فقط — حجم العبوة]
+
+   suppliers
+     └── purchases.supplier_id
+
+   purchases  (رأس فاتورة الشراء: مورد + إجمالي + حالة دفع)
+     ├── purchase_items.purchase_id   (أسطر الشراء: منتج + كمية + سعر snapshot)
+     └── supplier_payments.purchase_id (مدفوعات للمورد: وسيلة + مبلغ)
 
 
 ================================================================================
@@ -642,7 +780,7 @@ Constraints:
 نوع البيع (تقسيم/كامل)  is_full_bottle فقط          sale_type (3 قيم واضحة)
 وسائل الدفع             enum ثابت                   payment_methods (مرن)
 دفعات متعددة            ❌ غير مدعوم                payments (دفعات متعددة)
-عدد الجداول             7                           13
+عدد الجداول             7                           17
 
 
 ================================================================================
@@ -669,7 +807,7 @@ Constraints:
 
 
 ================================================================================
-                        🎯 لماذا 13 جدول فقط؟
+                        🎯 لماذا 17 جدول فقط؟
 ================================================================================
 
 ✅ users           → من يبيع؟
@@ -685,6 +823,10 @@ Constraints:
 ✅ payment_methods → ما وسائل الدفع المتاحة؟
 ✅ payments        → كيف دُفعت الفاتورة؟ بكم؟ وبأي وسيلة؟
 ✅ original_perfume_details → ما حجم عبوة العطر الأصلي؟
+✅ suppliers         → من هو المورد؟ وكم ديوني له؟
+✅ purchases         → ما فاتورة الشراء؟
+✅ purchase_items    → ما المنتجات المشتراة وبكم؟
+✅ supplier_payments → كم دفعت للمورد؟ وبأي وسيلة؟
 
 
 ================================================================================

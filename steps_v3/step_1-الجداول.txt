@@ -391,24 +391,30 @@ line_total         DECIMAL(10,2)   —                        —               
 created_at         TIMESTAMP       —                        CURRENT_TIMESTAMP     تاريخ الإنشاء
 
 ENUM sale_type:
-   'tier_decant'   → عطر زيتي مباع بالحجم (ml)
-                     السعر من tier_prices | خصم المخزون: stock -= size.value
-   'unit_decant'   → عطر أصلي / بخور / وشق مباع بالوحدة
-                     السعر = product_prices.price_per_unit × quantity
-                     خصم المخزون: stock -= (size.value × quantity)
-   'full_bottle'   → عطر أصلي مباع بالعبوة الكاملة
-                     السعر = product_prices.full_bottle_regular/vip
-                     خصم المخزون: stock -= stock الحالي كله
+   'tier_decant'   → عطر زيتي بالحجم
+                     size_id مطلوب | quantity = size.value
+                     unit_price من tier_prices | stock -= size.value
+   'unit_decant'   → عطر أصلي بالتقسيم
+                     size_id مطلوب | quantity = size.value
+                     unit_price من product_prices.price_per_unit | stock -= size.value
+   'full_bottle'   → عطر أصلي بالعبوة الكاملة
+                     size_id = NULL | quantity = bottle_volume
+                     unit_price من product_prices.full_bottle | stock -= bottle_volume
+   'unit_based'    → بخور / وشق / مبخرة / فحم
+                     size_id = NULL | quantity يدخله البائع يدوياً
+                     unit_price من product_prices.price_per_unit | stock -= quantity
 
 📌 قاعدة size_id:
-   - sale_type = 'tier_decant'  → size_id مطلوب (يحدد الحجم والسعر)
-   - sale_type = 'unit_decant'  → size_id مطلوب (يحدد الكمية المخصومة)
+   - sale_type = 'tier_decant'  → size_id مطلوب
+   - sale_type = 'unit_decant'  → size_id مطلوب
    - sale_type = 'full_bottle'  → size_id = NULL
+   - sale_type = 'unit_based'   → size_id = NULL
 
 📌 قاعدة quantity:
-   - sale_type = 'tier_decant'  → quantity = 1 (الحجم في size_id)
-   - sale_type = 'unit_decant'  → quantity = الكمية الفعلية (مثلاً: 15ml أو 10pcs)
-   - sale_type = 'full_bottle'  → quantity = 1
+   - sale_type = 'tier_decant'  → quantity = size.value (تلقائي)
+   - sale_type = 'unit_decant'  → quantity = size.value (تلقائي)
+   - sale_type = 'full_bottle'  → quantity = original_perfume_details.bottle_volume
+   - sale_type = 'unit_based'   → quantity يدخله البائع يدوياً
 
 📌 قاعدة unit_price (snapshot):
    - 'tier_decant'  → tier_prices.price_regular أو price_vip
